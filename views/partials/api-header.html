@@ -1,0 +1,27 @@
+<%#
+  Breadcrumb, title and tabs of the API pages. Takes: api (serialized), current (see api-tabs.html).
+%>
+<nav class="breadcrumb" aria-label="Breadcrumb">
+    <a href="/developer/catalogs">Catalogs</a>
+    <%- include('icon.html', { name: 'chevron-right' }) %>
+    <% if (api.catalog) { %><a href="/developer/catalogs/<%= api.catalog.id %>"><%= api.catalog.name %></a>
+    <%- include('icon.html', { name: 'chevron-right' }) %><% } %>
+    <span aria-current="page" data-api-name><%= api.name %></span>
+</nav>
+<div class="page-header">
+    <div class="user-cell">
+        <span class="app-avatar app-avatar-lg"><%- include('icon.html', { name: 'code', className: 'icon-lg' }) %></span>
+        <div>
+            <h1 data-api-name><%= api.name %></h1>
+            <div class="badges">
+                <span class="badge">v<%= api.version %></span>
+                <span class="badge">OpenAPI <%= api.openapi %></span>
+                <span class="badge <%= api.source === 'import' ? 'badge-primary' : '' %>"><%= api.source === 'import' ? 'Imported' : 'Created in console' %></span>
+            </div>
+        </div>
+    </div>
+    <div class="page-actions">
+        <a href="/api/org/apis/<%= api.id %>/spec" class="btn btn-secondary"><%- include('icon.html', { name: 'download' }) %>Download spec</a>
+    </div>
+</div>
+<%- include('api-tabs.html', { api, current }) %>

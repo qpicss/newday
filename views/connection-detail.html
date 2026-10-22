@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <%- include('partials/head.html', { title: connection.name }) %>
+</head>
+<body>
+    <%- include('partials/app-nav.html', { active: 'gateways' }) %>
+    <%
+    const connectionUrl = '/api/org/connections/' + connection.id;
+    const auth = connection.auth;
+    const tls = connection.tls;
+    const breaker = connection.circuitBreaker;
+    %>
+
+    <main id="main" class="page">
+        <nav class="breadcrumb" aria-label="Breadcrumb">
+            <a href="/developer/connections">Connections</a>
+            <%- include('partials/icon.html', { name: 'chevron-right' }) %>
+            <span aria-current="page"><%= connection.name %></span>
+        </nav>
+        <div class="page-header">
+            <div>
+                <h1><%= connection.name %></h1>
+                <p class="page-subtitle">Changes reach gateways on the next push (or right away with auto-push). Secrets are stored encrypted and never shown again.</p>
+            </div>
+        </div>
+
+        <form id="connectionForm" class="grid-2" data-connection-url="<%= connectionUrl %>">
+            <div class="stack">
+                <section class="card">
+                    <div class="card-header"><div><h2>Timeouts and retries</h2></div></div>
+                    <div class="card-body form">
+                        <div class="field">
+                            <label for="name">Name</label>
+                            <input class="input" type="text" id="name" name="name" value="<%= connection.name %>" maxlength="255" required>
+                        </div>
+                        <div class="field-row">
+                            <div class="field">
+                                <label for="connectTimeoutMs">Connect timeout (ms)</label>
+                                <input class="input input-sm" type="number" id="connectTimeoutMs" name="connectTimeoutMs" min="100" max="60000" value="<%= connection.connectTimeoutMs %>" required>
+                            </div>
+                            <div class="field">
+                                <label for="timeoutMs">Response timeout (ms)</label>
+                                <input class="input input-sm" type="number" id="timeoutMs" name="timeoutMs" min="100" max="300000" value="<%= connection.timeoutMs %>" required>
+                            </div>
+                        </div>
+                        <div class="field-row">
+                            <div class="field field-narrow">
+                                <label for="retries">Retries</label>
+                                <input class="input input-sm" type="number" id="retries" name="retries" min="0" max="5" value="<%= connection.retries %>" required>
+                            </div>
+                            <div class="field">
+                                <label for="retryOn">Retry on status codes</label>
+                                <input class="input input-sm mono" type="text" id="retryOn" name="retryOn" value="<%= connection.retryOn.join(', ') %>" placeholder="502, 503, 504">
+                            </div>
+                        </div>
+                        <p class="hint">Only GET, HEAD, OPTIONS, PUT and DELETE are retried, after network errors or the listed statuses, waiting 100 ms, 200 ms, 400 ms… between attempts.</p>
+                    </div>
+                </section>
+
+                <section class="card">
+                    <div class="card-header"><div><h2>Circuit breaker</h2><p>Stops calling a failing backend for a while, so clients get a fast 503 instead of piling up on timeouts.</p></div></div>
+                    <div class="card-body form">
+                        <label class="switch-row" for="breakerEnabled">
+                            <input class="switch" type="checkbox" id="breakerEnabled" name="breakerEnabled" <%= breaker.enabled ? 'checked' : '' %>>
+                            <span><strong>Open the circuit after repeated failures</strong><span class="hint">Counted per gateway node. After the cooldown one trial request decides whether it closes again.</span></span>
+                        </label>
+                        <div class="field-row">
+                            <div class="field">
+                                <label for="failureThreshold">Failures in a row</label>
+                                <input class="input input-sm" type="number" id="failureThreshold" name="failureThreshold" min="1" max="100" value="<%= breaker.failureThreshold %>">
+                            </div>
+                            <div class="field">
+                                <label for="cooldownMs">Cooldown (ms)</label>
+                                <input class="input input-sm" type="number" id="cooldownMs" name="cooldownMs" min="1000" max="600000" value="<%= breaker.cooldownMs %>">
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="card">
+                    <div class="card-header"><div><h2>Upstream credentials</h2><p>Added to every upstream request, unless a policy sets that header itself.</p></div></div>
+                    <div class="card-body form">
+                        <div class="field">
+                            <label for="authType">Authentication</label>
+                            <select class="select" id="authType" name="authType">
+                                <option value="none" <%= auth.type === 'none' ? 'selected' : '' %>>None</option>
+                                <option value="basic" <%= auth.type === 'basic' ? 'selected' : '' %>>Basic (username and password)</option>
+                                <option value="bearer" <%= auth.type === 'bearer' ? 'selected' : '' %>>Bearer token</option>
+                                <option value="header" <%= auth.type === 'header' ? 'selected' : '' %>>API key header</option>
+                            </select>
+                        </div>
+                        <div class="field" data-auth="basic">
+                            <label for="authUsername">Username</label>
+                            <input class="input input-sm" type="text" id="authUsername" name="authUsername" value="<%= auth.username || '' %>" maxlength="255" autocomplete="off">
+                        </div>
+                        <div class="field" data-auth="header">
+                            <label for="authHeaderName">Header name</label>
+                            <input class="input input-sm mono" type="text" id="authHeaderName" name="authHeaderName" value="<%= auth.headerName || '' %>" placeholder="x-api-key" maxlength="100">
+                        </div>
+                        <div class="field" data-auth="basic bearer header">
+                            <label for="authSecret" data-secret-label>Secret</label>
+                            <input class="input input-sm" type="password" id="authSecret" name="authSecret" autocomplete="new-password" placeholder="<%= auth.hasSecret ? 'Saved. Leave empty to keep it.' : '' %>">
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <div class="stack">
+                <section class="card">
+                    <div class="card-header"><div><h2>TLS</h2><p>For https:// upstreams. Use your own CA for private backends and a client certificate when the backend requires mTLS.</p></div></div>
+                    <div class="card-body form">
+                        <label class="switch-row" for="rejectUnauthorized">
+                            <input class="switch" type="checkbox" id="rejectUnauthorized" name="rejectUnauthorized" <%= tls.rejectUnauthorized ? 'checked' : '' %>>
+                            <span><strong>Verify the backend certificate</strong><span class="hint">Turn this off only for testing. Without it anyone on the network path can read and change traffic.</span></span>
+                        </label>
+                        <div class="field">
+                            <label for="serverName">TLS server name <span class="label-optional">(optional)</span></label>
+                            <input class="input input-sm mono" type="text" id="serverName" name="serverName" value="<%= tls.serverName || '' %>" placeholder="orders.internal" maxlength="253">
+                        </div>
+                        <div class="field">
+                            <label for="caPem">Trusted CA certificates (PEM) <span class="label-optional">(optional, added to the system CAs)</span></label>
+                            <% if (tls.ca) { %><p class="hint">Current: <%= tls.ca.subject %>, expires <%= formatDate(tls.ca.validTo) %>. Paste a new one to replace it.</p><% } %>
+                            <textarea class="textarea mono" id="caPem" name="caPem" rows="3" spellcheck="false" placeholder="-----BEGIN CERTIFICATE-----"></textarea>
+                            <% if (tls.ca) { %>
+                                <label class="checkbox-row"><input type="checkbox" name="removeCa"> Remove the CA certificate</label>
+                            <% } %>
+                        </div>
+
+                        <h3 class="subsection-title">Client certificate (mTLS)</h3>
+                        <% if (tls.clientCertificate) { %>
+                            <p class="hint">Current: <%= tls.clientCertificate.subject %>, issued by <%= tls.clientCertificate.issuer %>, expires <%= formatDate(tls.clientCertificate.validTo) %>.</p>
+                        <% } %>
+                        <div class="field">
+                            <label for="clientCertificatePem">Certificate (PEM)</label>
+                            <textarea class="textarea mono" id="clientCertificatePem" name="clientCertificatePem" rows="3" spellcheck="false" placeholder="-----BEGIN CERTIFICATE-----"></textarea>
+                        </div>
+                        <div class="field">
+                            <label for="clientKeyPem">Private key (PEM)</label>
+                            <textarea class="textarea mono" id="clientKeyPem" name="clientKeyPem" rows="3" spellcheck="false" placeholder="-----BEGIN PRIVATE KEY-----"></textarea>
+                        </div>
+                        <% if (tls.clientCertificate) { %>
+                            <label class="checkbox-row"><input type="checkbox" name="removeClientCertificate"> Remove the client certificate</label>
+                        <% } %>
+                    </div>
+                </section>
+
+                <section class="card">
+                    <div class="card-header"><div><h2>Used by</h2></div></div>
+                    <div class="card-body">
+                        <% if (connection.apis.length) { %>
+                            <ul class="link-list">
+                                <% connection.apis.forEach((api) => { %>
+                                    <li><a href="/developer/apis/<%= api.id %>"><%= api.name %></a><code class="mono-sm"><%= api.basePath %></code></li>
+                                <% }); %>
+                            </ul>
+                        <% } else { %>
+                            <p class="muted">No API uses this connection yet. Choose it under "Gateway" on an API's page.</p>
+                        <% } %>
+                    </div>
+                </section>
+
+                <div id="form-alert" class="alert alert-danger" role="alert" hidden>
+                    <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-danger-ghost"
+                        data-action="<%= connectionUrl %>" data-method="DELETE"
+                        data-confirm-title="Delete <%= connection.name %>?"
+                        data-confirm-message="<%= connection.apis.length %> API<%= connection.apis.length === 1 ? '' : 's' %> will use the gateway defaults after the next push."
+                        data-confirm-label="Delete connection" data-danger
+                        data-success="<%= connection.name %> was deleted"
+                        data-redirect="/developer/connections">
+                        Delete
+                    </button>
+                    <button type="submit" class="btn btn-primary">Save connection</button>
+                </div>
+            </div>
+        </form>
+    </main>
+
+    <script src="/js/ui.js"></script>
+    <script src="/js/connection-detail.js"></script>
+</body>
+</html>

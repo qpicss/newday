@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <%- include('partials/head.html', { title: 'Data dictionary' }) %>
+</head>
+<body>
+    <%- include('partials/app-nav.html', { active: 'dictionary' }) %>
+    <% const isFields = view === 'fields'; const list = isFields ? fields : objects; %>
+
+    <main id="main" class="page">
+        <div class="page-header">
+            <div>
+                <h1>Data dictionary</h1>
+                <p class="page-subtitle">The fields and objects your APIs are made of, defined once and reused. Importing an OpenAPI file adds its schemas and parameters here. Use them in the Design tab of an API for parameters, request bodies and responses.</p>
+            </div>
+        </div>
+
+        <nav class="page-tabs" aria-label="Dictionary">
+            <a class="page-tab" href="/developer/dictionary"<% if (isFields) { %> aria-current="page"<% } %>><%- include('partials/icon.html', { name: 'braces', className: 'icon-sm' }) %>Fields <span class="tab-count"><%= fields.length %></span></a>
+            <a class="page-tab" href="/developer/dictionary?view=objects"<% if (!isFields) { %> aria-current="page"<% } %>><%- include('partials/icon.html', { name: 'package', className: 'icon-sm' }) %>Objects <span class="tab-count"><%= objects.length %></span></a>
+        </nav>
+
+        <div class="grid-2">
+            <section class="card">
+                <% if (list.length) { %>
+                    <div class="list-toolbar">
+                        <label class="search">
+                            <%- include('partials/icon.html', { name: 'search' }) %>
+                            <span class="sr-only">Search <%= isFields ? 'fields' : 'objects' %></span>
+                            <input class="input" type="search" id="dictionarySearch" placeholder="Search <%= isFields ? 'fields' : 'objects' %>" data-filter="#dictionaryList" autocomplete="off">
+                        </label>
+                        <span class="muted text-sm"><%= list.length %> <%= isFields ? (list.length === 1 ? 'field' : 'fields') : (list.length === 1 ? 'object' : 'objects') %></span>
+                    </div>
+                    <ul class="app-list" id="dictionaryList">
+                        <% if (isFields) { %>
+                            <% fields.forEach((field) => { %>
+                                <li data-search="<%= (field.name + ' ' + (field.description || '') + ' ' + field.summary).toLowerCase() %>">
+                                    <a class="app-row" href="/developer/dictionary/fields/<%= field.id %>">
+                                        <span class="app-avatar"><%- include('partials/icon.html', { name: 'braces', className: 'icon-sm' }) %></span>
+                                        <span class="app-row-main">
+                                            <span class="cell-primary mono-name"><%= field.name %></span>
+                                            <span class="cell-secondary"><span class="schema-chip"><%= field.summary %></span><% if (field.description) { %> <%= field.description.length > 90 ? field.description.slice(0, 90) + '…' : field.description %><% } %></span>
+                                        </span>
+                                        <% if (field.objectCount) { %><span class="badge hide-sm"><%= field.objectCount %> object<%= field.objectCount === 1 ? '' : 's' %></span><% } %>
+                                        <% if (field.apiCount) { %><span class="badge badge-primary hide-sm"><%= field.apiCount %> API<%= field.apiCount === 1 ? '' : 's' %></span><% } %>
+                                        <%- include('partials/icon.html', { name: 'chevron-right' }) %>
+                                    </a>
+                                </li>
+                            <% }); %>
+                        <% } else { %>
+                            <% objects.forEach((object) => { %>
+                                <li data-search="<%= (object.name + ' ' + (object.description || '') + ' ' + object.propertyNames.join(' ')).toLowerCase() %>">
+                                    <a class="app-row" href="/developer/dictionary/objects/<%= object.id %>">
+                                        <span class="app-avatar"><%- include('partials/icon.html', { name: 'package', className: 'icon-sm' }) %></span>
+                                        <span class="app-row-main">
+                                            <span class="cell-primary mono-name"><%= object.name %></span>
+                                            <span class="cell-secondary">
+                                                <% if (object.propertyCount) { %><%= object.propertyNames.join(', ') %><%= object.propertyCount > object.propertyNames.length ? ' and ' + (object.propertyCount - object.propertyNames.length) + ' more' : '' %><% } else { %>No properties yet<% } %>
+                                            </span>
+                                        </span>
+                                        <span class="badge hide-sm"><%= object.propertyCount %> propert<%= object.propertyCount === 1 ? 'y' : 'ies' %></span>
+                                        <% if (object.apiCount) { %><span class="badge badge-primary hide-sm"><%= object.apiCount %> API<%= object.apiCount === 1 ? '' : 's' %></span><% } %>
+                                        <%- include('partials/icon.html', { name: 'chevron-right' }) %>
+                                    </a>
+                                </li>
+                            <% }); %>
+                        <% } %>
+                    </ul>
+                    <p class="no-results" data-filter-empty="#dictionaryList" hidden>Nothing matches your search.</p>
+                <% } else { %>
+                    <div class="empty-state">
+                        <div class="empty-icon"><%- include('partials/icon.html', { name: isFields ? 'braces' : 'package', className: 'icon-lg' }) %></div>
+                        <h3><%= isFields ? 'No fields yet' : 'No objects yet' %></h3>
+                        <p><%= isFields
+                            ? 'A field is one value with its rules, such as customerId (a uuid) or currency (three capital letters). Add one here, or fill the dictionary from an API.'
+                            : 'An object is a set of named properties, such as Customer or CreateOrderRequest. Each property is a field or another object.' %></p>
+                    </div>
+                <% } %>
+            </section>
+
+            <aside class="stack">
+                <section class="card">
+                    <div class="card-header">
+                        <div>
+                            <h2><%= isFields ? 'New field' : 'New object' %></h2>
+                            <p><%= isFields ? 'Add more rules (patterns, ranges, allowed values) on the field page.' : 'Then add its properties from your fields and objects.' %></p>
+                        </div>
+                    </div>
+                    <% if (isFields) { %>
+                        <form id="fieldForm" class="card-body form">
+                            <%- include('partials/field-form.html', { prefix: 'new', compact: true, fieldTypes, itemTypes }) %>
+                            <div id="field-alert" class="alert alert-danger" role="alert" hidden>
+                                <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                            </div>
+                            <div class="form-actions">
+                                <button type="submit" class="btn btn-primary"><%- include('partials/icon.html', { name: 'plus' }) %>Add field</button>
+                            </div>
+                        </form>
+                    <% } else { %>
+                        <form id="objectForm" class="card-body form">
+                            <div class="field">
+                                <label for="objectName">Name</label>
+                                <input class="input mono" type="text" id="objectName" name="name" maxlength="100" placeholder="CustomerAddress" autocomplete="off" spellcheck="false" required aria-describedby="object-name-hint">
+                                <span id="object-name-hint" class="hint">Becomes the schema name in OpenAPI documents: letters, digits, ".", "-" and "_".</span>
+                            </div>
+                            <div class="field">
+                                <label for="objectDescription">Description <span class="label-optional">(optional)</span></label>
+                                <textarea class="textarea" id="objectDescription" name="description" rows="2" maxlength="5000"></textarea>
+                            </div>
+                            <div id="object-alert" class="alert alert-danger" role="alert" hidden>
+                                <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                            </div>
+                            <div class="form-actions">
+                                <button type="submit" class="btn btn-primary"><%- include('partials/icon.html', { name: 'plus' }) %>Create object</button>
+                            </div>
+                        </form>
+                    <% } %>
+                </section>
+
+                <section class="card">
+                    <div class="card-header">
+                        <div>
+                            <h2>Fill from an API</h2>
+                            <p>Adds the schemas, parameters and inline bodies of an API's OpenAPI document. Entries you already have are reused.</p>
+                        </div>
+                    </div>
+                    <% if (apis.length) { %>
+                        <form id="importForm" class="card-body form">
+                            <div class="field">
+                                <label for="importApi">API</label>
+                                <select class="select" id="importApi" name="apiId" required>
+                                    <% apis.forEach((api) => { %><option value="<%= api.id %>"><%= api.name %> (v<%= api.version %>)</option><% }); %>
+                                </select>
+                            </div>
+                            <div id="import-alert" class="alert alert-danger" role="alert" hidden>
+                                <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                            </div>
+                            <div class="form-actions">
+                                <button type="submit" class="btn btn-secondary"><%- include('partials/icon.html', { name: 'download' }) %>Add to dictionary</button>
+                            </div>
+                        </form>
+                    <% } else { %>
+                        <div class="card-body"><p class="muted">No APIs yet. <a href="/developer/catalogs">Import an OpenAPI file</a> into a catalog and its schemas are added here.</p></div>
+                    <% } %>
+                </section>
+            </aside>
+        </div>
+    </main>
+
+    <script src="/js/ui.js"></script>
+    <script src="/js/field-form.js"></script>
+    <script src="/js/dictionary.js"></script>
+</body>
+</html>

@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <%- include('partials/head.html', { title: 'Access requests' }) %>
+</head>
+<body>
+    <%- include('partials/app-nav.html', { active: 'catalogs' }) %>
+
+    <main id="main" class="page">
+        <nav class="breadcrumb" aria-label="Breadcrumb">
+            <a href="/developer/catalogs">Catalogs</a>
+            <%- include('partials/icon.html', { name: 'chevron-right' }) %>
+            <span aria-current="page">Access requests</span>
+        </nav>
+        <div class="page-header">
+            <div>
+                <p class="page-eyebrow"><%= user.organization.name %></p>
+                <h1>Access requests</h1>
+                <p class="page-subtitle">Applications of your members ask for access to published products. Approved access reaches the gateway on its next push.</p>
+            </div>
+        </div>
+
+        <section class="card <%= pendingRequests.length ? 'card-attention' : '' %>" id="pending">
+            <div class="card-header">
+                <div>
+                    <h2>Waiting for a decision</h2>
+                    <p><%= pendingRequests.length ? pendingRequests.length + ' request' + (pendingRequests.length === 1 ? '' : 's') + ' across your catalogs.' : 'Nothing is waiting. New requests appear here and on the dashboard.' %></p>
+                </div>
+                <% if (pendingRequests.length) { %><span class="badge badge-warning badge-dot"><%= pendingRequests.length %> pending</span><% } %>
+            </div>
+            <% if (pendingRequests.length) { %>
+                <%- include('partials/request-table.html', { requests: pendingRequests, showProduct: true }) %>
+            <% } %>
+        </section>
+
+        <% if (recentRequests.length) { %>
+            <section class="card">
+                <div class="card-header">
+                    <div>
+                        <h2>Recent decisions</h2>
+                        <p>Revoke approved access here or on the product's page.</p>
+                    </div>
+                </div>
+                <%- include('partials/request-table.html', { requests: recentRequests, showProduct: true }) %>
+            </section>
+        <% } %>
+    </main>
+
+    <script src="/js/ui.js"></script>
+</body>
+</html>

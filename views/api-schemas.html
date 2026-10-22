@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <%- include('partials/head.html', { title: 'Schemas of ' + api.name }) %>
+</head>
+<body>
+    <%- include('partials/app-nav.html', { active: 'catalogs' }) %>
+    <%
+    const pageUrl = '/developer/apis/' + api.id + '/schemas';
+    const apiUrl = '/api/org/apis/' + api.id;
+    %>
+
+    <main id="main" class="page page-wide">
+        <%- include('partials/api-header.html', { api, current: 'schemas' }) %>
+
+        <div class="schema-layout" id="schemaDesigner" data-state="<%= JSON.stringify(state) %>">
+            <aside class="design-sidebar">
+                <section class="card">
+                    <div class="card-header">
+                        <div>
+                            <h2>Schemas</h2>
+                            <p><%= list.length %> in components.schemas</p>
+                        </div>
+                        <button type="button" class="btn btn-secondary btn-sm" data-new-schema><%- include('partials/icon.html', { name: 'plus' }) %>New</button>
+                    </div>
+                    <% if (list.length > 8) { %>
+                        <div class="design-search">
+                            <label class="search">
+                                <%- include('partials/icon.html', { name: 'search' }) %>
+                                <span class="sr-only">Search schemas</span>
+                                <input class="input" type="search" id="schemaSearch" placeholder="Search schemas" data-filter="#schemaNav" autocomplete="off">
+                            </label>
+                        </div>
+                    <% } %>
+                    <ul class="design-ops schema-nav" id="schemaNav">
+                        <% list.forEach((item) => { %>
+                            <li data-search="<%= (item.name + ' ' + item.schema).toLowerCase() %>">
+                                <a class="design-op" href="<%= pageUrl %>?name=<%= encodeURIComponent(item.name) %>"<% if (item.name === selected) { %> aria-current="page"<% } %> data-schema-link>
+                                    <span class="design-op-main">
+                                        <code><%= item.name %></code>
+                                        <small><%= item.schema %></small>
+                                    </span>
+                                    <% if (item.status === 'outdated') { %><span class="badge badge-warning">Out of date</span>
+                                    <% } else if (item.status === 'current') { %><span class="badge badge-success">Dictionary</span><% } %>
+                                </a>
+                            </li>
+                        <% }); %>
+                    </ul>
+                    <p class="no-results" data-filter-empty="#schemaNav" hidden>No schema matches.</p>
+                </section>
+            </aside>
+
+            <% if (!selected) { %>
+                <section class="card schema-empty">
+                    <div class="empty-state">
+                        <div class="empty-icon"><%- include('partials/icon.html', { name: 'package', className: 'icon-lg' }) %></div>
+                        <h3>No schemas yet</h3>
+                        <p>Schemas describe the bodies your API sends and receives. Create one here, or use a dictionary object as a body on the Design tab.</p>
+                        <button type="button" class="btn btn-primary" data-new-schema><%- include('partials/icon.html', { name: 'plus' }) %>New schema</button>
+                    </div>
+                </section>
+            <% } else { %>
+                <%- include('partials/schema-editor.html', { name: selected, showSave: true, banner: dictionaryObject, fields: state.fields, fieldTypes, itemTypes }) %>
+            <% } %>
+        </div>
+
+        <% if (selected) { %>
+            <div class="grid-2 schema-footer">
+                <section class="card">
+                    <div class="card-header">
+                        <div>
+                            <h2>Used by</h2>
+                            <p>Where the document refers to <%= selected %>.</p>
+                        </div>
+                    </div>
+                    <% if (usage.length) { %>
+                        <ul class="schema-list">
+                            <% usage.forEach((use) => { %>
+                                <li>
+                                    <% if (use.kind === 'operation') { %>
+                                        <% if (use.method) { %><span class="method method-<%= use.method %>"><%= use.method %></span><% } %>
+                                        <a class="mono-name" href="/developer/apis/<%= api.id %>/design<%= use.method ? '?method=' + use.method + '&path=' + encodeURIComponent(use.path) : '' %>"><%= use.path %></a>
+                                        <span class="muted"><%= use.where %></span>
+                                    <% } else if (use.kind === 'schema') { %>
+                                        <span class="badge">Schema</span>
+                                        <a class="mono-name" href="<%= pageUrl %>?name=<%= encodeURIComponent(use.name) %>" data-schema-link><%= use.name %></a>
+                                    <% } else { %>
+                                        <span class="badge"><%= use.section %></span>
+                                        <span class="mono-name"><%= use.name %></span>
+                                    <% } %>
+                                </li>
+                            <% }); %>
+                        </ul>
+                    <% } else { %>
+                        <div class="card-body"><p class="muted">Nothing uses it yet. Use it as a body or response on the Design tab, or as a property of another schema.</p></div>
+                    <% } %>
+                </section>
+
+                <section class="card">
+                    <div class="card-header"><div><h2>Schema</h2></div></div>
+                    <div class="card-body stack-sm">
+                        <div class="danger-row">
+                            <p>Add it, and the schemas it uses, to the data dictionary to reuse it in other APIs.</p>
+                            <button type="button" class="btn btn-secondary btn-sm" data-to-dictionary><%- include('partials/icon.html', { name: 'database' }) %>Add to dictionary</button>
+                        </div>
+                        <div class="danger-row">
+                            <% if (usage.length) { %>
+                                <p class="muted">It can be deleted once nothing uses it.</p>
+                            <% } else { %>
+                                <p>Deleting removes it from the document.</p>
+                                <button type="button" class="btn btn-danger btn-sm"
+                                    data-action="<%= apiUrl %>/schemas/<%= encodeURIComponent(selected) %>" data-method="DELETE"
+                                    data-confirm-title="Delete <%= selected %>?"
+                                    data-confirm-message="The schema is removed from the OpenAPI document."
+                                    data-confirm-label="Delete schema" data-danger
+                                    data-success="<%= selected %> was deleted"
+                                    data-redirect="<%= pageUrl %>">
+                                    <%- include('partials/icon.html', { name: 'trash' }) %>Delete schema
+                                </button>
+                            <% } %>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        <% } %>
+
+        <dialog class="modal" id="newSchemaDialog" aria-labelledby="newSchemaTitle">
+            <form class="modal-content form" id="newSchemaForm" method="dialog">
+                <h2 class="modal-title" id="newSchemaTitle">New schema</h2>
+                <div class="field">
+                    <label for="newSchemaName">Name</label>
+                    <input class="input mono" type="text" id="newSchemaName" name="name" maxlength="100" placeholder="OrderLine" autocomplete="off" spellcheck="false" required>
+                </div>
+                <div class="field">
+                    <label for="newSchemaKind">Starts as</label>
+                    <select class="select" id="newSchemaKind" name="kind">
+                        <option value="object">An object</option>
+                        <option value="list">A list of objects</option>
+                        <option value="value">A value (text, number, allowed values…)</option>
+                    </select>
+                </div>
+                <div id="new-schema-alert" class="alert alert-danger" role="alert" hidden>
+                    <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" data-dialog-cancel>Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create schema</button>
+                </div>
+            </form>
+        </dialog>
+    </main>
+
+    <script src="/js/ui.js"></script>
+    <script src="/js/field-form.js"></script>
+    <script src="/js/schema-editor.js"></script>
+    <script src="/js/schema-designer.js"></script>
+</body>
+</html>

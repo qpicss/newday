@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <%- include('partials/head.html', { title: product.name }) %>
+</head>
+<body>
+    <%- include('partials/app-nav.html', { active: 'catalogs' }) %>
+    <% const catalogPage = product.catalog ? '/developer/catalogs/' + product.catalog.id : '/developer/catalogs'; %>
+    <%
+    const isPublished = product.status === 'published';
+    const productUrl = '/api/org/products/' + product.id;
+    const pending = subscriptions.filter((subscription) => subscription.status === 'pending').length;
+    %>
+
+    <main id="main" class="page">
+        <nav class="breadcrumb" aria-label="Breadcrumb">
+            <a href="/developer/catalogs">Catalogs</a>
+            <%- include('partials/icon.html', { name: 'chevron-right' }) %>
+            <% if (product.catalog) { %><a href="/developer/catalogs/<%= product.catalog.id %>"><%= product.catalog.name %></a>
+            <%- include('partials/icon.html', { name: 'chevron-right' }) %><% } %>
+            <span aria-current="page" data-product-name><%= product.name %></span>
+        </nav>
+        <div class="page-header">
+            <div class="user-cell">
+                <span class="app-avatar app-avatar-lg"><%- include('partials/icon.html', { name: 'package', className: 'icon-lg' }) %></span>
+                <div>
+                    <h1 data-product-name><%= product.name %></h1>
+                    <div class="badges">
+                        <span class="badge badge-dot <%= isPublished ? 'badge-success' : '' %>"><%= isPublished ? 'Published' : 'Draft' %></span>
+                        <span class="badge"><%= product.apis.length %> API<%= product.apis.length === 1 ? '' : 's' %></span>
+                        <span class="badge"><%= formatRateLimit(product) %></span>
+                        <span class="badge"><%= formatBilling(product) %></span>
+                    </div>
+                </div>
+            </div>
+            <div class="page-actions">
+                <% if (isPublished) { %>
+                    <a href="/developer/catalog/<%= product.id %>" class="btn btn-secondary"><%- include('partials/icon.html', { name: 'book' }) %>View in catalog</a>
+                    <button type="button" class="btn btn-secondary"
+                        data-action="<%= productUrl %>" data-method="PUT" data-body="<%= JSON.stringify({ status: 'draft' }) %>"
+                        data-confirm-title="Unpublish <%= product.name %>?"
+                        data-confirm-message="It disappears from the catalog. Existing approved applications keep their access."
+                        data-confirm-label="Unpublish"
+                        data-success="<%= product.name %> is now a draft">Unpublish</button>
+                <% } else { %>
+                    <button type="button" class="btn btn-primary" <%= product.apis.length ? '' : 'disabled' %>
+                        title="<%= product.apis.length ? 'Show this product in the catalog' : 'Add at least one API first' %>"
+                        data-action="<%= productUrl %>" data-method="PUT" data-body="<%= JSON.stringify({ status: 'published' }) %>"
+                        data-success="<%= product.name %> is published to the catalog">
+                        <%- include('partials/icon.html', { name: 'upload' }) %>Publish
+                    </button>
+                <% } %>
+            </div>
+        </div>
+
+        <nav class="section-tabs" aria-label="Product sections">
+            <a href="#info">Info</a>
+            <a href="#apis">APIs <span class="badge"><%= product.apis.length %></span></a>
+            <a href="#rate-limit">Rate limit</a>
+            <a href="#billing">Billing</a>
+            <a href="#access">Access requests <% if (pending) { %><span class="badge badge-warning"><%= pending %></span><% } %></a>
+        </nav>
+
+        <%- include('partials/usage-card.html', { usage, usageDescription: 'Calls to this product through your gateways', showApplications: true }) %>
+
+        <div class="grid-2">
+            <div class="stack">
+                <section class="card" id="info">
+                    <div class="card-header">
+                        <div>
+                            <h2>Info</h2>
+                            <p>Shown to developers in the catalog.</p>
+                        </div>
+                    </div>
+                    <form id="infoForm" class="card-body form" data-product-url="<%= productUrl %>">
+                        <div class="field">
+                            <label for="name">Name</label>
+                            <input class="input" type="text" id="name" name="name" value="<%= product.name %>" maxlength="255" required>
+                        </div>
+                        <div class="field">
+                            <label for="description">Description <span class="label-optional">(optional)</span></label>
+                            <textarea class="textarea" id="description" name="description" rows="4" maxlength="5000"><%= product.description || '' %></textarea>
+                        </div>
+                        <div id="info-alert" class="alert alert-danger" role="alert" hidden>
+                            <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">Save info</button>
+                        </div>
+                    </form>
+                </section>
+
+                <section class="card" id="apis">
+                    <div class="card-header">
+                        <div>
+                            <h2>APIs</h2>
+                            <p>Applications with access to this product can call these APIs.</p>
+                        </div>
+                    </div>
+                    <% if (product.apis.length) { %>
+                        <ul class="operation-list">
+                            <% product.apis.forEach((api) => { %>
+                                <li class="operation">
+                                    <span class="app-avatar"><%- include('partials/icon.html', { name: 'code', className: 'icon-sm' }) %></span>
+                                    <div class="operation-main">
+                                        <a class="cell-primary" href="/developer/apis/<%= api.id %>"><%= api.name %></a>
+                                        <span class="operation-summary">v<%= api.version %></span>
+                                    </div>
+                                    <button type="button" class="btn btn-danger-ghost btn-sm"
+                                        data-action="<%= productUrl %>/apis/<%= api.id %>" data-method="DELETE"
+                                        data-confirm-title="Remove <%= api.name %>?"
+                                        data-confirm-message="<%= product.apis.length === 1 && isPublished ? 'This is the last API, so the product will be unpublished.' : 'Applications using this product lose access to this API.' %>"
+                                        data-confirm-label="Remove API" data-danger
+                                        data-success="<%= api.name %> was removed">Remove</button>
+                                </li>
+                            <% }); %>
+                        </ul>
+                    <% } else { %>
+                        <div class="card-body"><p class="muted">No APIs yet. Add at least one to publish this product.</p></div>
+                    <% } %>
+                    <% if (availableApis.length) { %>
+                        <form id="addApiForm" class="card-footer-form inline-form" data-product-url="<%= productUrl %>">
+                            <label class="sr-only" for="apiId">API to add</label>
+                            <select class="select" id="apiId" name="apiId" required>
+                                <% availableApis.forEach((api) => { %><option value="<%= api.id %>"><%= api.name %> (v<%= api.version %>)</option><% }); %>
+                            </select>
+                            <button type="submit" class="btn btn-secondary"><%- include('partials/icon.html', { name: 'plus' }) %>Add API</button>
+                            <div id="api-alert" class="alert alert-danger" role="alert" hidden>
+                                <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                            </div>
+                        </form>
+                    <% } else { %>
+                        <div class="card-footer-form"><p class="muted text-sm"><%= product.apis.length ? 'All of this catalog\'s APIs are already in this product.' : 'This catalog has no APIs yet.' %> <a href="<%= catalogPage %>#apis">Create or import an API</a>.</p></div>
+                    <% } %>
+                </section>
+
+                <section class="card" id="access">
+                    <div class="card-header">
+                        <div>
+                            <h2>Access requests</h2>
+                            <p>Applications that asked to use this product.</p>
+                        </div>
+                    </div>
+                    <% if (subscriptions.length) { %>
+                        <%- include('partials/request-table.html', { requests: subscriptions, showProduct: false }) %>
+                    <% } else { %>
+                        <div class="card-body"><p class="muted"><%= isPublished ? 'No requests yet. They appear here when developers request access from the catalog.' : 'Publish this product so developers can request access.' %></p></div>
+                    <% } %>
+                </section>
+            </div>
+
+            <div class="stack">
+                <section class="card" id="rate-limit">
+                    <div class="card-header">
+                        <div>
+                            <h2>Rate limit</h2>
+                            <p>Maximum requests per application.</p>
+                        </div>
+                    </div>
+                    <form id="rateLimitForm" class="card-body form" data-product-url="<%= productUrl %>">
+                        <label class="switch-row" for="rateLimitEnabled">
+                            <input type="checkbox" class="switch" id="rateLimitEnabled" name="rateLimitEnabled" <%= product.rateLimit.enabled ? 'checked' : '' %>>
+                            <span>
+                                <strong>Limit requests</strong>
+                                <span class="hint">When off, applications can make unlimited requests.</span>
+                            </span>
+                        </label>
+                        <div class="field-row" data-rate-limit-fields>
+                            <div class="field">
+                                <label for="rateLimitRequests">Requests</label>
+                                <input class="input" type="number" id="rateLimitRequests" name="rateLimitRequests" min="1" max="1000000000" step="1" value="<%= product.rateLimit.requests %>" required>
+                            </div>
+                            <div class="field">
+                                <label for="rateLimitPeriod">Per</label>
+                                <select class="select" id="rateLimitPeriod" name="rateLimitPeriod">
+                                    <% periods.forEach((period) => { %><option value="<%= period %>" <%= product.rateLimit.period === period ? 'selected' : '' %>><%= period %></option><% }); %>
+                                </select>
+                            </div>
+                        </div>
+                        <p class="hint" data-rate-limit-preview></p>
+                        <div id="rate-alert" class="alert alert-danger" role="alert" hidden>
+                            <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-secondary">Save rate limit</button>
+                        </div>
+                    </form>
+                </section>
+
+                <section class="card" id="billing">
+                    <div class="card-header">
+                        <div>
+                            <h2>Billing</h2>
+                            <p>How subscribers are charged.</p>
+                        </div>
+                    </div>
+                    <form id="billingForm" class="card-body form" data-product-url="<%= productUrl %>">
+                        <fieldset class="choice-cards">
+                            <legend class="label">Plan</legend>
+                            <% [
+                                ['free', 'Free', 'No charge'],
+                                ['flat', 'Flat fee', 'Fixed price per month or year'],
+                                ['usage', 'Usage based', 'Price per 1,000 requests'],
+                            ].forEach(([value, label, hint]) => { %>
+                                <label class="choice-card">
+                                    <input type="radio" name="billingPlan" value="<%= value %>" <%= product.billing.plan === value ? 'checked' : '' %>>
+                                    <span><strong><%= label %></strong><span class="hint"><%= hint %></span></span>
+                                </label>
+                            <% }); %>
+                        </fieldset>
+                        <div class="field-row" data-billing-paid>
+                            <div class="field">
+                                <label for="billingPrice" data-price-label>Price</label>
+                                <input class="input" type="number" id="billingPrice" name="billingPrice" min="0" step="0.01" value="<%= (product.billing.priceCents / 100).toFixed(2) %>">
+                            </div>
+                            <div class="field field-narrow">
+                                <label for="billingCurrency">Currency</label>
+                                <select class="select" id="billingCurrency" name="billingCurrency">
+                                    <% currencies.forEach((currency) => { %><option value="<%= currency %>" <%= product.billing.currency === currency ? 'selected' : '' %>><%= currency %></option><% }); %>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="field" data-billing-interval>
+                            <label for="billingInterval">Billed every</label>
+                            <select class="select" id="billingInterval" name="billingInterval">
+                                <option value="month" <%= product.billing.interval === 'month' ? 'selected' : '' %>>Month</option>
+                                <option value="year" <%= product.billing.interval === 'year' ? 'selected' : '' %>>Year</option>
+                            </select>
+                        </div>
+                        <div id="billing-alert" class="alert alert-danger" role="alert" hidden>
+                            <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-secondary">Save billing</button>
+                        </div>
+                    </form>
+                </section>
+
+                <section class="card card-danger">
+                    <div class="card-header">
+                        <div><h2>Danger zone</h2></div>
+                    </div>
+                    <div class="card-body danger-row">
+                        <p>Deleting this product removes it from the catalog and cancels <%= subscriptions.length %> access request<%= subscriptions.length === 1 ? '' : 's' %>. Your APIs are kept.</p>
+                        <button type="button" class="btn btn-danger btn-sm"
+                            data-action="<%= productUrl %>" data-method="DELETE"
+                            data-confirm-title="Delete <%= product.name %>?"
+                            data-confirm-message="Applications with access lose it immediately. This can't be undone."
+                            data-confirm-label="Delete product" data-danger
+                            data-success="<%= product.name %> was deleted"
+                            data-redirect="<%= catalogPage %>">
+                            <%- include('partials/icon.html', { name: 'trash' }) %>Delete product
+                        </button>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </main>
+
+    <script src="/js/ui.js"></script>
+    <script src="/js/charts.js"></script>
+    <script src="/js/usage.js"></script>
+    <script src="/js/product-detail.js"></script>
+</body>
+</html>

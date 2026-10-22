@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <%- include('partials/head.html', { title: 'Create user' }) %>
+</head>
+<body>
+    <%- include('partials/app-nav.html', { active: 'admin' }) %>
+
+    <main id="main" class="page page-narrow">
+        <nav class="breadcrumb" aria-label="Breadcrumb">
+            <a href="/developer/admin">Admin</a>
+            <%- include('partials/icon.html', { name: 'chevron-right' }) %>
+            <span aria-current="page">Create user</span>
+        </nav>
+        <div class="page-header">
+            <div>
+                <h1>Create user</h1>
+                <p class="page-subtitle">Add an account and choose its initial access level. Share the temporary password with them securely.</p>
+            </div>
+        </div>
+
+        <section class="card">
+            <form id="createUserForm" class="card-body form">
+                <div class="field">
+                    <label for="name">Full name</label>
+                    <input class="input" type="text" id="name" name="name" maxlength="100" autocomplete="off" required autofocus>
+                </div>
+                <div class="field">
+                    <label for="email">Email</label>
+                    <input class="input" type="email" id="email" name="email" autocomplete="off" required>
+                </div>
+                <div class="field">
+                    <label for="password">Temporary password</label>
+                    <div class="input-group">
+                        <input class="input" type="password" id="password" name="password" minlength="8" autocomplete="new-password" aria-describedby="password-hint" required>
+                        <button type="button" class="input-addon" data-toggle-password="password" aria-label="Show password">
+                            <%- include('partials/icon.html', { name: 'eye' }) %>
+                        </button>
+                    </div>
+                    <span id="password-hint" class="hint">At least 8 characters.</span>
+                </div>
+                <div class="field">
+                    <label for="organizationId">Organization</label>
+                    <select class="select" id="organizationId" name="organizationId">
+                        <option value="">Create a new organization…</option>
+                        <% organizations.forEach((organization) => { %><option value="<%= organization.id %>"><%= organization.name %></option><% }); %>
+                    </select>
+                </div>
+                <div class="field" data-new-organization>
+                    <label for="organizationName">New organization name</label>
+                    <input class="input" type="text" id="organizationName" name="organizationName" minlength="2" maxlength="100">
+                    <span class="hint">Every user belongs to an organization. They'll be its admin.</span>
+                </div>
+                <div class="field" data-org-role hidden>
+                    <label for="orgRole">Organization role</label>
+                    <select class="select" id="orgRole" name="orgRole">
+                        <option value="member">Member</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="role">Platform role</label>
+                    <select class="select" id="role" name="role">
+                        <option value="user">User: can manage their own applications</option>
+                        <option value="admin">Admin: can also manage all users</option>
+                    </select>
+                </div>
+                <label class="switch-row" for="isVerified">
+                    <input type="checkbox" class="switch" id="isVerified" name="isVerified">
+                    <span>
+                        <strong>Mark as verified</strong>
+                        <span class="hint">Skip email verification for this account.</span>
+                    </span>
+                </label>
+
+                <div id="form-alert" class="alert alert-danger" role="alert" hidden>
+                    <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                </div>
+
+                <div class="form-actions">
+                    <a href="/developer/admin" class="btn btn-secondary">Cancel</a>
+                    <button type="submit" class="btn btn-primary">Create user</button>
+                </div>
+            </form>
+        </section>
+    </main>
+
+    <script src="/js/ui.js"></script>
+    <script src="/js/admin-create-user.js"></script>
+</body>
+</html>

@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <%- include('partials/head.html', { title: 'Policies' }) %>
+</head>
+<body>
+    <%- include('partials/app-nav.html', { active: 'gateways' }) %>
+
+    <main id="main" class="page">
+        <%- include('partials/runtime-tabs.html', { current: 'policies' }) %>
+        <div class="page-header">
+            <div>
+                <h1>Policies</h1>
+                <p class="page-subtitle">A policy is the flow a gateway runs for each request: from Input, through Gateway scripts, If branches and Invoke service steps, to Output. Every API starts with a policy of its own that returns the request as it is, until you add steps.</p>
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <section class="card">
+                <% if (policies.length) { %>
+                    <ul class="app-list">
+                        <% policies.forEach((policy) => { %>
+                            <li>
+                                <a class="app-row" href="/developer/policies/<%= policy.id %>">
+                                    <% const steps = policy.flow.nodes.filter((node) => !['input', 'output'].includes(node.type)); %>
+                                    <span class="app-avatar"><%- include('partials/icon.html', { name: 'git-branch', className: 'icon-sm' }) %></span>
+                                    <span class="app-row-main">
+                                        <span class="cell-primary"><%= policy.name %></span>
+                                        <span class="cell-secondary flow-chips">
+                                            <% if (steps.length) { %>
+                                                <% steps.slice(0, 4).forEach((node) => { %><span class="flow-chip type-<%= node.type %>"><%= node.name %></span><% }); %>
+                                                <% if (steps.length > 4) { %><span class="flow-chip">+<%= steps.length - 4 %></span><% } %>
+                                            <% } else { %>
+                                                Input → Output: returns the request
+                                            <% } %>
+                                        </span>
+                                    </span>
+                                    <span class="badge"><%= policy.apis.length %> API<%= policy.apis.length === 1 ? '' : 's' %></span>
+                                    <% if (policy.ports.length) { %><span class="badge hide-sm"><%= policy.ports.length %> port<%= policy.ports.length === 1 ? '' : 's' %></span><% } %>
+                                    <%- include('partials/icon.html', { name: 'chevron-right' }) %>
+                                </a>
+                            </li>
+                        <% }); %>
+                    </ul>
+                <% } else { %>
+                    <div class="empty-state">
+                        <div class="empty-icon"><%- include('partials/icon.html', { name: 'file-code', className: 'icon-lg' }) %></div>
+                        <h3>No policies yet</h3>
+                        <p>Each new API gets one. You can also create a policy here and use it for several APIs, or as a port policy that runs for every request on a gateway port.</p>
+                    </div>
+                <% } %>
+            </section>
+
+            <aside class="card">
+                <div class="card-header">
+                    <div>
+                        <h2>New policy</h2>
+                        <p>Starts as Input → Output. Add steps in the editor.</p>
+                    </div>
+                </div>
+                <form id="policyForm" class="card-body form">
+                    <div class="field">
+                        <label for="policyName">Name</label>
+                        <input class="input" type="text" id="policyName" name="name" maxlength="255" placeholder="Tenant routing" required>
+                    </div>
+                    <div class="field">
+                        <label for="policyDescription">Description <span class="label-optional">(optional)</span></label>
+                        <textarea class="textarea" id="policyDescription" name="description" rows="2" maxlength="2000"></textarea>
+                    </div>
+                    <div id="form-alert" class="alert alert-danger" role="alert" hidden>
+                        <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary"><%- include('partials/icon.html', { name: 'plus' }) %>Create policy</button>
+                    </div>
+                </form>
+            </aside>
+        </div>
+    </main>
+
+    <script src="/js/ui.js"></script>
+    <script src="/js/policies.js"></script>
+</body>
+</html>

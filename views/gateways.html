@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <%- include('partials/head.html', { title: 'Gateways' }) %>
+</head>
+<body>
+    <%- include('partials/app-nav.html', { active: 'gateways' }) %>
+
+    <main id="main" class="page">
+        <%- include('partials/runtime-tabs.html', { current: 'gateways' }) %>
+        <div class="page-header">
+            <div>
+                <p class="page-eyebrow"><%= user.organization.name %></p>
+                <h1>Gateways</h1>
+                <p class="page-subtitle">A gateway is the server your consumers call. It runs on your own machines and serves the published products of the catalog it is attached to.</p>
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <div class="stack">
+                <section class="card">
+                    <div class="card-header">
+                        <div>
+                            <h2>Gateways</h2>
+                            <p>A gateway is one node or a cluster of nodes behind a load balancer.</p>
+                        </div>
+                    </div>
+                    <% if (gateways.length) { %>
+                        <ul class="app-list">
+                            <% gateways.forEach((gateway) => { const state = gatewayState(gateway.state); %>
+                                <li>
+                                    <a class="app-row" href="/developer/gateways/<%= gateway.id %>">
+                                        <span class="app-avatar"><%- include('partials/icon.html', { name: 'server', className: 'icon-sm' }) %></span>
+                                        <span class="app-row-main">
+                                            <span class="cell-primary"><%= gateway.name %></span>
+                                            <% if (gateway.setup.next) { %>
+                                                <span class="cell-secondary setup-next">Step <%= gateway.setup.steps.indexOf(gateway.setup.next) + 1 %> of <%= gateway.setup.total %>: <%= gateway.setup.next.title.toLowerCase() %></span>
+                                            <% } else { %>
+                                                <span class="cell-secondary">Serves <%= gateway.catalog.name %> · <%= gateway.nodes.length %> node<%= gateway.nodes.length === 1 ? '' : 's' %> · <%= gateway.handlers.length %> port<%= gateway.handlers.length === 1 ? '' : 's' %></span>
+                                            <% } %>
+                                        </span>
+                                        <span class="badge badge-dot <%= gateway.running ? 'badge-success' : '' %>"><%= gateway.running ? 'Running' : 'Not running' %></span>
+                                        <% if (gateway.catalog) { %><span class="badge badge-dot <%= state.className %>"><%= state.label %></span><% } %>
+                                        <%- include('partials/icon.html', { name: 'chevron-right' }) %>
+                                    </a>
+                                </li>
+                            <% }); %>
+                        </ul>
+                    <% } else { %>
+                        <div class="empty-state">
+                            <div class="empty-icon"><%- include('partials/icon.html', { name: 'server', className: 'icon-lg' }) %></div>
+                            <h3>No gateways yet</h3>
+                            <p>Create one with the form. Its page then walks you through starting it and attaching it to a catalog.</p>
+                        </div>
+                    <% } %>
+                </section>
+            </div>
+
+            <div class="stack">
+                <section class="card">
+                    <div class="card-header">
+                        <div>
+                            <h2>New gateway</h2>
+                            <p>After you create it, its page guides you through four steps:</p>
+                        </div>
+                    </div>
+                    <ol class="setup-preview">
+                        <li><strong>Open a port</strong> for API calls</li>
+                        <li><strong>Download the credentials</strong> file</li>
+                        <li><strong>Start a node</strong> with Docker or as a Linux service</li>
+                        <li><strong>Attach it to a catalog</strong> to serve its products</li>
+                    </ol>
+                    <form id="gatewayForm" class="card-body form">
+                        <div class="field">
+                            <label for="gatewayName">Name</label>
+                            <input class="input" type="text" id="gatewayName" name="name" maxlength="255" placeholder="Production EU" required>
+                        </div>
+                        <div class="field">
+                            <label for="gatewayUrl">Public URL</label>
+                            <input class="input mono" type="url" id="gatewayUrl" name="publicUrl" placeholder="https://api.example.com" aria-describedby="gateway-url-hint" required>
+                            <span id="gateway-url-hint" class="hint">The address consumers will call: one node, or the load balancer in front of several. To try it on your own machine, use <code>https://localhost:8443</code>.</span>
+                        </div>
+                        <div id="gateway-alert" class="alert alert-danger" role="alert" hidden>
+                            <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary"><%- include('partials/icon.html', { name: 'plus' }) %>Create gateway</button>
+                        </div>
+                    </form>
+                </section>
+
+                <section class="card">
+                    <div class="card-header">
+                        <div>
+                            <h2>Management certificate authority</h2>
+                            <p>Self-signed. It issues every gateway's certificate and the console's own client certificate.</p>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <dl class="detail-list detail-list-compact">
+                            <div><dt>SHA-256</dt><dd><code class="fingerprint"><%= ca.fingerprint %></code></dd></div>
+                            <div><dt>Valid until</dt><dd><%= formatDate(ca.validTo) %></dd></div>
+                        </dl>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </main>
+
+    <script src="/js/ui.js"></script>
+    <script src="/js/gateways.js"></script>
+</body>
+</html>

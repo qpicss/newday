@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <%- include('partials/head.html', { title: catalog.name }) %>
+</head>
+<body>
+    <%- include('partials/app-nav.html', { active: 'catalogs' }) %>
+    <%
+    const catalogUrl = '/api/org/catalogs/' + catalog.id;
+    const pagesUrl = '/developer/catalogs/' + catalog.id;
+    const runningGateways = availableGateways.filter((gateway) => gateway.running);
+    const settingUpGateways = availableGateways.filter((gateway) => !gateway.running);
+    const published = products.filter((product) => product.status === 'published').length;
+    %>
+
+    <main id="main" class="page">
+        <nav class="breadcrumb" aria-label="Breadcrumb">
+            <a href="/developer/catalogs">Catalogs</a>
+            <%- include('partials/icon.html', { name: 'chevron-right' }) %>
+            <span aria-current="page"><%= catalog.name %></span>
+        </nav>
+        <div class="page-header">
+            <div class="user-cell">
+                <span class="app-avatar app-avatar-lg"><%- include('partials/icon.html', { name: 'book', className: 'icon-lg' }) %></span>
+                <div>
+                    <p class="page-eyebrow"><%= user.organization.name %> · Catalog</p>
+                    <h1><%= catalog.name %></h1>
+                    <p class="page-subtitle"><%= catalog.description || 'Products and APIs in this catalog are served by the gateway attached to it.' %></p>
+                </div>
+            </div>
+            <div class="page-actions">
+                <button type="button" class="btn btn-primary" id="pushCatalog" data-catalog-url="<%= catalogUrl %>" <%= gateways.length ? '' : 'disabled' %>>
+                    <%- include('partials/icon.html', { name: 'upload' }) %>Push to gateway
+                </button>
+            </div>
+        </div>
+
+        <section class="stats" aria-label="What this catalog holds">
+            <div class="card stat">
+                <span class="stat-icon"><%- include('partials/icon.html', { name: 'package' }) %></span>
+                <div><div class="stat-label">Products</div><div class="stat-value"><%= products.length %></div></div>
+            </div>
+            <div class="card stat">
+                <span class="stat-icon is-success"><%- include('partials/icon.html', { name: 'check' }) %></span>
+                <div><div class="stat-label">Published</div><div class="stat-value"><%= published %></div></div>
+            </div>
+            <div class="card stat">
+                <span class="stat-icon is-indigo"><%- include('partials/icon.html', { name: 'code' }) %></span>
+                <div><div class="stat-label">APIs</div><div class="stat-value"><%= apis.length %></div></div>
+            </div>
+            <div class="card stat">
+                <span class="stat-icon is-warning"><%- include('partials/icon.html', { name: 'server' }) %></span>
+                <div><div class="stat-label">Gateway</div><div class="stat-value stat-value-sm"><%= gateways.length ? gateways.map((gateway) => gateway.name).join(', ') : 'None' %></div></div>
+            </div>
+        </section>
+
+        <div class="grid-2">
+            <div class="stack">
+                <section class="card" id="products">
+                    <div class="card-header">
+                        <div>
+                            <h2>Products</h2>
+                            <p>Bundle this catalog's APIs and set rate limits and pricing. Members see a product once it's published.</p>
+                        </div>
+                    </div>
+                    <% if (products.length) { %>
+                        <ul class="app-list">
+                            <% products.forEach((product) => { %>
+                                <li>
+                                    <a class="app-row" href="/developer/products/<%= product.id %>">
+                                        <span class="app-avatar"><%- include('partials/icon.html', { name: 'package', className: 'icon-sm' }) %></span>
+                                        <span class="app-row-main">
+                                            <span class="cell-primary"><%= product.name %></span>
+                                            <span class="cell-secondary"><%= product.apis.length %> API<%= product.apis.length === 1 ? '' : 's' %> · <%= formatRateLimit(product) %> · <%= formatBilling(product) %></span>
+                                        </span>
+                                        <% if (product.pendingCount) { %><span class="badge badge-warning"><%= product.pendingCount %> pending</span><% } %>
+                                        <span class="badge badge-dot <%= product.status === 'published' ? 'badge-success' : '' %>"><%= product.status === 'published' ? 'Published' : 'Draft' %></span>
+                                        <%- include('partials/icon.html', { name: 'chevron-right' }) %>
+                                    </a>
+                                </li>
+                            <% }); %>
+                        </ul>
+                    <% } else { %>
+                        <div class="card-body"><p class="muted">No products yet. <%= apis.length ? 'Create one and add APIs to it.' : 'Add an API first, then bundle it into a product.' %></p></div>
+                    <% } %>
+                    <form id="productForm" class="card-footer-form" data-catalog-id="<%= catalog.id %>">
+                        <span class="label">New product</span>
+                        <div class="field-row">
+                            <div class="field">
+                                <label class="sr-only" for="productName">Product name</label>
+                                <input class="input input-sm" type="text" id="productName" name="name" maxlength="255" placeholder="Payments Starter" required>
+                            </div>
+                            <button type="submit" class="btn btn-secondary btn-sm"><%- include('partials/icon.html', { name: 'plus' }) %>Create product</button>
+                        </div>
+                        <div id="product-alert" class="alert alert-danger" role="alert" hidden>
+                            <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                        </div>
+                    </form>
+                </section>
+
+                <section class="card" id="apis">
+                    <div class="card-header">
+                        <div>
+                            <h2>APIs</h2>
+                            <p>OpenAPI 3 descriptions of the backends this catalog exposes.</p>
+                        </div>
+                        <div class="page-actions">
+                            <a class="btn btn-secondary btn-sm" href="<%= pagesUrl %>/apis/import"><%- include('partials/icon.html', { name: 'upload' }) %>Import OpenAPI</a>
+                            <a class="btn btn-secondary btn-sm" href="<%= pagesUrl %>/apis/new"><%- include('partials/icon.html', { name: 'plus' }) %>Create API</a>
+                        </div>
+                    </div>
+                    <% if (apis.length) { %>
+                        <ul class="app-list">
+                            <% apis.forEach((api) => { %>
+                                <li>
+                                    <a class="app-row" href="/developer/apis/<%= api.id %>">
+                                        <span class="app-avatar"><%- include('partials/icon.html', { name: 'code', className: 'icon-sm' }) %></span>
+                                        <span class="app-row-main">
+                                            <span class="cell-primary"><%= api.name %> <span class="badge mono-sm">v<%= api.version %></span></span>
+                                            <span class="cell-secondary"><code><%= api.basePath %></code> · <%= api.operationCount %> endpoint<%= api.operationCount === 1 ? '' : 's' %> · <%= api.products.length ? 'in ' + api.products.map((product) => product.name).join(', ') : 'not in a product yet' %></span>
+                                        </span>
+                                        <%- include('partials/icon.html', { name: 'chevron-right' }) %>
+                                    </a>
+                                </li>
+                            <% }); %>
+                        </ul>
+                    <% } else { %>
+                        <div class="card-body"><p class="muted">No APIs yet. Import an OpenAPI 3 file or describe the endpoints yourself.</p></div>
+                    <% } %>
+                </section>
+            </div>
+
+            <div class="stack">
+                <section class="card" id="gateway">
+                    <div class="card-header">
+                        <div>
+                            <h2>Gateway</h2>
+                            <p>The gateway attached here serves this catalog's published products to approved applications.</p>
+                        </div>
+                    </div>
+                    <% if (gateways.length) { %>
+                        <ul class="operation-list">
+                            <% gateways.forEach((gateway) => { const state = gatewayState(gateway.state); %>
+                                <li class="operation">
+                                    <span class="app-avatar"><%- include('partials/icon.html', { name: 'server', className: 'icon-sm' }) %></span>
+                                    <div class="operation-main">
+                                        <a class="cell-primary" href="/developer/gateways/<%= gateway.id %>"><%= gateway.name %></a>
+                                        <span class="operation-summary mono-sm"><%= gateway.publicUrl %> · <%= gateway.nodes.length %> node<%= gateway.nodes.length === 1 ? '' : 's' %></span>
+                                    </div>
+                                    <span class="badge badge-dot <%= state.className %>"><%= state.label %></span>
+                                    <button type="button" class="btn btn-danger-ghost btn-sm"
+                                        data-action="/api/org/gateways/<%= gateway.id %>" data-method="PUT"
+                                        data-body="<%= JSON.stringify({ catalogId: null }) %>"
+                                        data-confirm-title="Detach <%= gateway.name %>?"
+                                        data-confirm-message="After its next push the gateway stops serving this catalog's products."
+                                        data-confirm-label="Detach" data-danger
+                                        data-success="<%= gateway.name %> was detached">Detach</button>
+                                </li>
+                            <% }); %>
+                        </ul>
+                    <% } %>
+                    <% if (runningGateways.length) { %>
+                        <form id="attachForm" class="card-footer-form" data-catalog-id="<%= catalog.id %>">
+                            <span class="label"><%= gateways.length ? 'Attach another gateway' : 'Attach a gateway' %></span>
+                            <div class="field-row">
+                                <div class="field">
+                                    <label class="sr-only" for="gatewayId">Gateway</label>
+                                    <select class="select select-sm" id="gatewayId" name="gatewayId" required>
+                                        <% runningGateways.forEach((gateway) => { %>
+                                            <option value="<%= gateway.id %>"><%= gateway.name %><%= gateway.catalog ? ' (now serves ' + gateway.catalog.name + ')' : '' %></option>
+                                        <% }); %>
+                                    </select>
+                                </div>
+                                <button type="submit" class="btn btn-primary btn-sm"><%- include('partials/icon.html', { name: 'link' }) %>Attach</button>
+                            </div>
+                            <% if (runningGateways.some((gateway) => gateway.catalog)) { %><p class="hint">A gateway that serves another catalog moves to this one.</p><% } %>
+                            <div id="attach-alert" class="alert alert-danger" role="alert" hidden>
+                                <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                            </div>
+                        </form>
+                    <% } %>
+                    <% if (settingUpGateways.length) { %>
+                        <div class="card-section">
+                            <span class="label">Not running yet</span>
+                            <p class="hint">A gateway can be attached once one of its nodes is running.</p>
+                            <ul class="setup-gateways">
+                                <% settingUpGateways.forEach((gateway) => { %>
+                                    <li>
+                                        <span class="cell-primary"><%= gateway.name %></span>
+                                        <span class="cell-secondary setup-next">Step <%= gateway.setup.steps.indexOf(gateway.setup.next) + 1 %> of <%= gateway.setup.total %>: <%= gateway.setup.next.title.toLowerCase() %></span>
+                                        <a class="btn btn-secondary btn-sm" href="/developer/gateways/<%= gateway.id %>#setup">Continue setup</a>
+                                    </li>
+                                <% }); %>
+                            </ul>
+                        </div>
+                    <% } %>
+                    <% if (!gateways.length && !availableGateways.length) { %>
+                        <div class="card-body">
+                            <p class="muted">You have no gateway yet. Create one: its page walks you through starting a node, and then you attach it here or from the gateway's page.</p>
+                            <a class="btn btn-primary btn-sm" href="/developer/gateways"><%- include('partials/icon.html', { name: 'plus' }) %>Create a gateway</a>
+                        </div>
+                    <% } %>
+                </section>
+
+                <section class="card">
+                    <div class="card-header">
+                        <div><h2>Details</h2></div>
+                    </div>
+                    <form id="catalogForm" class="card-body form" data-catalog-url="<%= catalogUrl %>">
+                        <div class="field">
+                            <label for="name">Name</label>
+                            <input class="input" type="text" id="name" name="name" value="<%= catalog.name %>" maxlength="255" required>
+                        </div>
+                        <div class="field">
+                            <label for="description">Description <span class="label-optional">(optional)</span></label>
+                            <textarea class="textarea" id="description" name="description" rows="3" maxlength="2000"><%= catalog.description || '' %></textarea>
+                        </div>
+                        <div id="catalog-alert" class="alert alert-danger" role="alert" hidden>
+                            <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-secondary">Save</button>
+                        </div>
+                    </form>
+                </section>
+
+                <section class="card card-danger">
+                    <div class="card-header">
+                        <div><h2>Danger zone</h2></div>
+                    </div>
+                    <div class="card-body danger-row">
+                        <p>A catalog can be deleted once it has no products, APIs or attached gateway.</p>
+                        <button type="button" class="btn btn-danger btn-sm" <%= gateways.length || products.length || apis.length ? 'disabled' : '' %>
+                            data-action="<%= catalogUrl %>" data-method="DELETE"
+                            data-confirm-title="Delete <%= catalog.name %>?"
+                            data-confirm-message="The empty catalog is removed. This can't be undone."
+                            data-confirm-label="Delete catalog" data-danger
+                            data-success="<%= catalog.name %> was deleted"
+                            data-redirect="/developer/catalogs">
+                            <%- include('partials/icon.html', { name: 'trash' }) %>Delete catalog
+                        </button>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </main>
+
+    <script src="/js/ui.js"></script>
+    <script src="/js/catalog-detail.js"></script>
+</body>
+</html>

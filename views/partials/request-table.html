@@ -1,0 +1,79 @@
+<%
+// Access requests for an org admin. Expects `requests` (serialized subscriptions);
+// `showProduct` adds the product column.
+%>
+<div class="table-wrap">
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Application</th>
+                <th class="hide-sm">Requested by</th>
+                <% if (showProduct) { %><th>Product</th><% } %>
+                <th>Status</th>
+                <th><span class="sr-only">Actions</span></th>
+            </tr>
+        </thead>
+        <tbody>
+            <% requests.forEach((request) => {
+                const owner = request.application.owner;
+                const status = subscriptionStatus(request.status);
+            %>
+                <tr>
+                    <td>
+                        <div class="user-cell">
+                            <span class="app-avatar"><%= initials(request.application.name) %></span>
+                            <div>
+                                <div class="cell-primary"><%= request.application.name %></div>
+                                <div class="cell-secondary mono-sm"><%= request.application.clientId %></div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="hide-sm">
+                        <% if (owner) { %>
+                            <div class="cell-primary"><%= owner.name %></div>
+                            <div class="cell-secondary"><%= owner.email %></div>
+                        <% } else { %>
+                            <span class="muted">Unknown</span>
+                        <% } %>
+                    </td>
+                    <% if (showProduct) { %>
+                        <td><a href="/developer/products/<%= request.product.id %>"><%= request.product.name %></a></td>
+                    <% } %>
+                    <td>
+                        <span class="badge badge-dot <%= status.className %>"><%= status.label %></span>
+                        <div class="cell-secondary"><%= formatDate(request.decidedAt || request.createdAt) %></div>
+                    </td>
+                    <td class="actions-cell">
+                        <% if (request.status === 'pending') { %>
+                            <button type="button" class="btn btn-primary btn-sm"
+                                data-action="/api/org/subscriptions/<%= request.id %>" data-method="PUT"
+                                data-body="<%= JSON.stringify({ status: 'approved' }) %>"
+                                data-success="Access approved for <%= request.application.name %>">
+                                <%- include('icon.html', { name: 'check' }) %>Approve
+                            </button>
+                            <button type="button" class="btn btn-danger-ghost btn-sm"
+                                data-action="/api/org/subscriptions/<%= request.id %>" data-method="PUT"
+                                data-body="<%= JSON.stringify({ status: 'rejected' }) %>"
+                                data-confirm-title="Reject this request?"
+                                data-confirm-message="<%= request.application.name %> won't get access to <%= request.product.name %>. The owner can request again later."
+                                data-confirm-label="Reject" data-danger
+                                data-success="Request rejected">
+                                Reject
+                            </button>
+                        <% } else if (request.status === 'approved') { %>
+                            <button type="button" class="btn btn-danger-ghost btn-sm"
+                                data-action="/api/org/subscriptions/<%= request.id %>" data-method="PUT"
+                                data-body="<%= JSON.stringify({ status: 'revoked' }) %>"
+                                data-confirm-title="Revoke access?"
+                                data-confirm-message="<%= request.application.name %> will lose access to <%= request.product.name %>."
+                                data-confirm-label="Revoke access" data-danger
+                                data-success="Access revoked">
+                                Revoke
+                            </button>
+                        <% } %>
+                    </td>
+                </tr>
+            <% }); %>
+        </tbody>
+    </table>
+</div>

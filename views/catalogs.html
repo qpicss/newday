@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <%- include('partials/head.html', { title: 'Catalogs' }) %>
+</head>
+<body>
+    <%- include('partials/app-nav.html', { active: 'catalogs' }) %>
+
+    <main id="main" class="page">
+        <div class="page-header">
+            <div>
+                <p class="page-eyebrow"><%= user.organization.name %></p>
+                <h1>Catalogs</h1>
+                <p class="page-subtitle">
+                    <% if (isOrgAdmin) { %>
+                        Each catalog holds its own API products and APIs. Attach a running gateway to a catalog to serve its published products.
+                    <% } else { %>
+                        The API products <%= user.organization.name %> offers. Open a product to see its endpoints and request access for one of your applications.
+                    <% } %>
+                </p>
+            </div>
+            <% if (isOrgAdmin) { %>
+                <div class="page-actions">
+                    <a href="/developer/requests" class="btn btn-secondary">
+                        <%- include('partials/icon.html', { name: 'clock' }) %>Access requests<% if (pending) { %><span class="badge badge-warning"><%= pending %></span><% } %>
+                    </a>
+                </div>
+            <% } %>
+        </div>
+
+        <div class="<%= isOrgAdmin ? 'grid-2 grid-2-wide' : '' %>">
+            <section aria-label="Catalogs">
+                <% if (catalogs.length) { %>
+                    <ul class="catalog-grid">
+                        <% catalogs.forEach((catalog) => { %>
+                            <li>
+                                <a class="card catalog-card" href="/developer/catalogs/<%= catalog.id %>">
+                                    <span class="catalog-card-head">
+                                        <span class="app-avatar"><%- include('partials/icon.html', { name: 'book', className: 'icon-sm' }) %></span>
+                                        <span class="cell-primary"><%= catalog.name %></span>
+                                    </span>
+                                    <span class="catalog-card-desc"><%= catalog.description || (isOrgAdmin ? 'No description' : 'Products from ' + user.organization.name) %></span>
+                                    <% if (catalog.productNames.length) { %>
+                                        <span class="catalog-card-products"><%= catalog.productNames.slice(0, 4).join(' · ') %><%= catalog.productNames.length > 4 ? ' · +' + (catalog.productNames.length - 4) + ' more' : '' %></span>
+                                    <% } %>
+                                    <span class="catalog-card-stats">
+                                        <% if (isOrgAdmin) { %>
+                                            <span class="badge"><%= catalog.products %> product<%= catalog.products === 1 ? '' : 's' %> · <%= catalog.published %> published</span>
+                                            <span class="badge"><%= catalog.apis %> API<%= catalog.apis === 1 ? '' : 's' %></span>
+                                            <% if (catalog.gateways.length) { %>
+                                                <% catalog.gateways.forEach((gateway) => { %>
+                                                    <span class="badge badge-dot <%= gateway.running ? 'badge-success' : 'badge-warning' %>"><%= gateway.name %></span>
+                                                <% }); %>
+                                            <% } else { %>
+                                                <span class="badge badge-dot">No gateway</span>
+                                            <% } %>
+                                        <% } else { %>
+                                            <span class="badge"><%= catalog.products %> product<%= catalog.products === 1 ? '' : 's' %></span>
+                                        <% } %>
+                                    </span>
+                                </a>
+                            </li>
+                        <% }); %>
+                    </ul>
+                <% } else { %>
+                    <div class="card empty-state">
+                        <div class="empty-icon"><%- include('partials/icon.html', { name: 'book', className: 'icon-lg' }) %></div>
+                        <h3>No catalogs yet</h3>
+                        <p><%= isOrgAdmin ? 'Create a catalog, then add APIs and products to it.' : user.organization.name + " hasn't published any catalogs yet." %></p>
+                    </div>
+                <% } %>
+            </section>
+
+            <% if (isOrgAdmin) { %>
+                <aside class="card">
+                    <div class="card-header">
+                        <div>
+                            <h2>New catalog</h2>
+                            <p>For example one per audience: partners, internal teams, the public.</p>
+                        </div>
+                    </div>
+                    <form id="catalogForm" class="card-body form">
+                        <div class="field">
+                            <label for="catalogName">Name</label>
+                            <input class="input" type="text" id="catalogName" name="name" maxlength="255" placeholder="Partner APIs" required>
+                        </div>
+                        <div class="field">
+                            <label for="catalogDescription">Description <span class="label-optional">(optional)</span></label>
+                            <textarea class="textarea" id="catalogDescription" name="description" rows="3" maxlength="2000"></textarea>
+                        </div>
+                        <div id="form-alert" class="alert alert-danger" role="alert" hidden>
+                            <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary"><%- include('partials/icon.html', { name: 'plus' }) %>Create catalog</button>
+                        </div>
+                    </form>
+                    <div class="card-footer-form">
+                        <p class="hint">Shared by all catalogs: <a href="/developer/policies">policies</a> and <a href="/developer/connections">connections</a>.</p>
+                    </div>
+                </aside>
+            <% } %>
+        </div>
+    </main>
+
+    <script src="/js/ui.js"></script>
+    <% if (isOrgAdmin) { %><script src="/js/catalogs.js"></script><% } %>
+</body>
+</html>

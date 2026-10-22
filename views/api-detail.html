@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <%- include('partials/head.html', { title: api.name }) %>
+</head>
+<body>
+    <%- include('partials/app-nav.html', { active: 'catalogs' }) %>
+    <%
+    const catalogPage = api.catalog ? '/developer/catalogs/' + api.catalog.id : '/developer/catalogs';
+    // Invoke steps without a Backend URL call the OpenAPI server URL, which must include the scheme and host.
+    let baseUrlIsFull = false;
+    try { baseUrlIsFull = ['http:', 'https:'].includes(new URL(api.baseUrl).protocol); } catch (error) { /* missing or relative */ }
+    %>
+
+    <main id="main" class="page">
+        <%- include('partials/api-header.html', { api, current: 'overview' }) %>
+
+        <div class="grid-2">
+            <div class="stack">
+                <section class="card">
+                    <div class="card-header">
+                        <div>
+                            <h2>Endpoints</h2>
+                            <p><%= api.operationCount %> endpoint<%= api.operationCount === 1 ? '' : 's' %><%= api.baseUrl ? ' on ' + api.baseUrl : '' %></p>
+                        </div>
+                    </div>
+                    <% if (api.operations.length) { %>
+                        <ul class="operation-list">
+                            <% api.operations.forEach((operation) => { %>
+                                <li class="operation">
+                                    <span class="method method-<%= operation.method %>"><%= operation.method %></span>
+                                    <div class="operation-main">
+                                        <code class="operation-path"><%= operation.path %></code>
+                                        <% if (operation.summary) { %><span class="operation-summary"><%= operation.summary %></span><% } %>
+                                    </div>
+                                    <% if (operation.deprecated) { %><span class="badge badge-warning">Deprecated</span><% } %>
+                                    <a class="btn btn-ghost btn-sm btn-icon" href="/developer/apis/<%= api.id %>/design?method=<%= operation.method %>&amp;path=<%= encodeURIComponent(operation.path) %>"
+                                        aria-label="Design <%= operation.method.toUpperCase() %> <%= operation.path %>" title="Design parameters and bodies">
+                                        <%- include('partials/icon.html', { name: 'edit' }) %>
+                                    </a>
+                                    <button type="button" class="btn btn-ghost btn-sm btn-icon"
+                                        data-action="<%= '/api/org/apis/' + api.id + '/operations?method=' + operation.method + '&path=' + encodeURIComponent(operation.path) %>"
+                                        data-method="DELETE"
+                                        data-confirm-title="Remove endpoint?"
+                                        data-confirm-message="<%= operation.method.toUpperCase() %> <%= operation.path %> will be removed from the OpenAPI document."
+                                        data-confirm-label="Remove" data-danger
+                                        data-success="Endpoint removed"
+                                        aria-label="Remove <%= operation.method.toUpperCase() %> <%= operation.path %>" title="Remove">
+                                        <%- include('partials/icon.html', { name: 'trash' }) %>
+                                    </button>
+                                </li>
+                            <% }); %>
+                        </ul>
+                    <% } else { %>
+                        <div class="card-body"><p class="muted">No endpoints yet. Add the first one below.</p></div>
+                    <% } %>
+                    <form id="operationForm" class="card-footer-form">
+                        <span class="label">Add endpoint</span>
+                        <%- include('partials/endpoint-fields.html') %>
+                        <div id="operation-alert" class="alert alert-danger" role="alert" hidden>
+                            <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-secondary btn-sm"><%- include('partials/icon.html', { name: 'plus' }) %>Add endpoint</button>
+                        </div>
+                    </form>
+                </section>
+            </div>
+
+            <div class="stack">
+                <section class="card" id="details">
+                    <div class="card-header">
+                        <div>
+                            <h2>Details</h2>
+                            <p>Also updates the OpenAPI document's info and servers.</p>
+                        </div>
+                    </div>
+                    <form id="apiForm" class="card-body form" data-api-id="<%= api.id %>">
+                        <div class="field">
+                            <label for="name">Name</label>
+                            <input class="input" type="text" id="name" name="name" value="<%= api.name %>" maxlength="255" required>
+                        </div>
+                        <div class="field">
+                            <label for="version">Version</label>
+                            <input class="input" type="text" id="version" name="version" value="<%= api.version %>" maxlength="50" required>
+                        </div>
+                        <div class="field">
+                            <label for="description">Description <span class="label-optional">(optional)</span></label>
+                            <textarea class="textarea" id="description" name="description" rows="3" maxlength="5000"><%= api.description || '' %></textarea>
+                        </div>
+                        <div id="form-alert" class="alert alert-danger" role="alert" hidden>
+                            <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">Save details</button>
+                        </div>
+                    </form>
+                </section>
+
+                <section class="card" id="gateway">
+                    <div class="card-header">
+                        <div>
+                            <h2>Gateway</h2>
+                            <p>How gateways serve this API.</p>
+                        </div>
+                    </div>
+                    <form id="gatewayForm" class="card-body form" data-api-id="<%= api.id %>">
+                        <div class="field">
+                            <label for="basePath">Base path</label>
+                            <input class="input mono" type="text" id="basePath" name="basePath" value="<%= api.basePath || '' %>" maxlength="200" placeholder="/orders" aria-describedby="base-path-hint" required>
+                            <span id="base-path-hint" class="hint">Consumers call <code>&lt;gateway URL&gt;<%= api.basePath || '/orders' %>/&lt;operation path&gt;</code>. What happens next is up to the policy below.</span>
+                        </div>
+                        <div class="field">
+                            <label for="policyId">Policy</label>
+                            <select class="select" id="policyId" name="policyId" aria-describedby="policy-hint">
+                                <option value="">No policy (returns each request as it is)</option>
+                                <% policies.forEach((policy) => { %><option value="<%= policy.id %>" <%= api.policyId === policy.id ? 'selected' : '' %>><%= policy.name %></option><% }); %>
+                            </select>
+                            <span id="policy-hint" class="hint"><% if (api.policyId) { %><a href="/developer/policies/<%= api.policyId %>">Edit the flow</a>: <% } %>the steps the gateway runs for each call. The backend URL is set in its Invoke service step. Until it has one, the gateway answers with the request it received.</span>
+                            <% if (!baseUrlIsFull && callsBackend) { %>
+                                <div id="base-url-warning" class="alert alert-warning" role="status">
+                                    <%- include('partials/icon.html', { name: 'alert' }) %>
+                                    <span>An Invoke service step of this policy has no Backend URL, and the OpenAPI document has no full server address. <a href="/developer/policies/<%= policyId %>">Set the Backend URL in the step</a>.</span>
+                                </div>
+                            <% } %>
+                        </div>
+                        <div class="field">
+                            <label for="connectionId">Connection</label>
+                            <select class="select" id="connectionId" name="connectionId" aria-describedby="connection-hint">
+                                <option value="">Gateway defaults</option>
+                                <% connections.forEach((connection) => { %><option value="<%= connection.id %>" <%= api.connectionId === connection.id ? 'selected' : '' %>><%= connection.name %></option><% }); %>
+                            </select>
+                            <span id="connection-hint" class="hint"><a href="/developer/connections">Manage connections</a>: timeouts, retries, circuit breaker, upstream credentials and mTLS.</span>
+                        </div>
+                        <div id="gateway-alert" class="alert alert-danger" role="alert" hidden>
+                            <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-secondary">Save gateway settings</button>
+                        </div>
+                    </form>
+                </section>
+
+                <section class="card">
+                    <div class="card-header">
+                        <div>
+                            <h2>Used in products</h2>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <% if (api.products.length) { %>
+                            <ul class="link-list">
+                                <% api.products.forEach((product) => { %>
+                                    <li>
+                                        <a href="/developer/products/<%= product.id %>"><%= product.name %></a>
+                                        <span class="badge <%= product.status === 'published' ? 'badge-success badge-dot' : '' %>"><%= product.status === 'published' ? 'Published' : 'Draft' %></span>
+                                    </li>
+                                <% }); %>
+                            </ul>
+                        <% } else { %>
+                            <p class="muted">Not part of any product yet. <a href="<%= catalogPage %>#products">Add it to a product</a> in its catalog to offer it.</p>
+                        <% } %>
+                    </div>
+                </section>
+
+                <section class="card card-danger">
+                    <div class="card-header">
+                        <div><h2>Danger zone</h2></div>
+                    </div>
+                    <div class="card-body danger-row">
+                        <p>Deleting this API removes it from <%= api.products.length %> product<%= api.products.length === 1 ? '' : 's' %>. Products left without APIs go back to draft.</p>
+                        <button type="button" class="btn btn-danger btn-sm"
+                            data-action="/api/org/apis/<%= api.id %>" data-method="DELETE"
+                            data-confirm-title="Delete <%= api.name %>?"
+                            data-confirm-message="This removes the API and its OpenAPI document. It can't be undone."
+                            data-confirm-label="Delete API" data-danger
+                            data-success="<%= api.name %> was deleted"
+                            data-redirect="<%= catalogPage %>">
+                            <%- include('partials/icon.html', { name: 'trash' }) %>Delete API
+                        </button>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </main>
+
+    <script src="/js/ui.js"></script>
+    <script src="/js/api-detail.js"></script>
+</body>
+</html>

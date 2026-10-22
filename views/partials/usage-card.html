@@ -1,0 +1,49 @@
+<%
+// usage: services/usage.js usageSeries(); showApplications: list the top applications.
+const usageTotals = usage.totals;
+const errorRate = usageTotals.requests ? Math.round((usageTotals.errors / usageTotals.requests) * 1000) / 10 : 0;
+%>
+<section class="card usage-card" id="usage">
+    <div class="card-header">
+        <div>
+            <h2>Traffic</h2>
+            <p><%= typeof usageDescription !== 'undefined' ? usageDescription : 'Requests through your gateways' %>, last <%= usage.days %> days (UTC). Gateways report usage every minute.</p>
+        </div>
+    </div>
+    <div class="usage-totals">
+        <div><span class="stat-label">Requests</span><strong><%= usageTotals.requests.toLocaleString('en-US') %></strong></div>
+        <div><span class="stat-label">Server errors</span><strong><%= usageTotals.errors.toLocaleString('en-US') %></strong><span class="hint"><%= errorRate %>%</span></div>
+        <div><span class="stat-label">Rate limited</span><strong><%= usageTotals.rateLimited.toLocaleString('en-US') %></strong></div>
+    </div>
+    <% if (usageTotals.requests) { %>
+        <div class="usage-charts">
+            <div>
+                <h3 class="chart-title">Requests per day</h3>
+                <div data-usage-chart="requests" data-usage="<%= JSON.stringify(usage.points) %>"></div>
+            </div>
+            <div>
+                <h3 class="chart-title">Server errors per day</h3>
+                <div data-usage-chart="errors" data-usage="<%= JSON.stringify(usage.points) %>"></div>
+            </div>
+        </div>
+        <% if (typeof showApplications !== 'undefined' && showApplications && usage.applications.length) { %>
+            <div class="table-wrap">
+                <table class="table">
+                    <thead><tr><th>Application</th><th class="num">Requests</th><th class="num">Server errors</th></tr></thead>
+                    <tbody>
+                        <% usage.applications.forEach((entry) => { %>
+                            <tr>
+                                <td><div class="cell-primary"><%= entry.name %></div><div class="cell-secondary mono-sm"><%= entry.clientId %></div></td>
+                                <td class="num"><%= entry.requests.toLocaleString('en-US') %></td>
+                                <td class="num"><%= entry.errors.toLocaleString('en-US') %></td>
+                            </tr>
+                        <% }); %>
+                    </tbody>
+                </table>
+            </div>
+        <% } %>
+    <% } else { %>
+        <div class="card-body"><p class="muted">No traffic recorded yet. Usage appears here a minute after the first call through a gateway.</p></div>
+    <% } %>
+    <div id="tooltip" class="tooltip" role="status" hidden></div>
+</section>

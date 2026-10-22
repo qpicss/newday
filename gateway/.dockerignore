@@ -1,0 +1,7 @@
+node_modules
+test
+data
+deploy
+*.md
+credentials*.json
+.env*

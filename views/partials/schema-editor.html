@@ -1,0 +1,145 @@
+<%#
+  The schema editor (public/js/schema-editor.js): tree, JSON, YAML and example views of one schema,
+  and an inspector for the selected row. Takes: name, showSave (and saveLabel), fields (dictionary fields for the
+  value picker), fieldTypes, itemTypes, and optionally banner (the dictionary object it came from).
+%>
+<div class="schema-workspace" data-schema-editor>
+    <section class="card schema-main">
+        <div class="schema-head">
+            <div class="schema-title">
+                <h2 class="mono-name" data-schema-title><%= name %></h2>
+                <span class="schema-chip" data-schema-summary></span>
+            </div>
+            <div class="schema-head-actions">
+                <span class="save-state" data-save-state hidden>Unsaved changes</span>
+                <button type="button" class="btn btn-ghost btn-sm btn-icon" data-undo disabled aria-label="Undo" title="Undo (Ctrl+Z)">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg>
+                </button>
+                <button type="button" class="btn btn-ghost btn-sm btn-icon" data-redo disabled aria-label="Redo" title="Redo (Ctrl+Y)">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 14l5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h3"/></svg>
+                </button>
+                <% if (showSave) { %><button type="button" class="btn btn-primary btn-sm" data-save><%= typeof saveLabel !== 'undefined' ? saveLabel : 'Save schema' %></button><% } %>
+            </div>
+        </div>
+        <% if (typeof banner !== 'undefined' && banner) { %>
+            <div class="alert alert-info schema-banner" role="note">
+                <%- include('icon.html', { name: 'database' }) %>
+                <span>Written from the dictionary object <a class="mono-name" href="/developer/dictionary/objects/<%= banner.id %>"><%= banner.name %></a>. Change it there so every API using it can update. A change saved here makes this schema the document's own.</span>
+            </div>
+        <% } %>
+        <div class="schema-tabs" role="tablist" aria-label="View">
+            <% [['tree', 'Tree'], ['json', 'JSON'], ['yaml', 'YAML'], ['example', 'Example']].forEach(([key, label], index) => { %>
+                <button type="button" class="schema-tab" role="tab" id="tab-<%= key %>" aria-controls="panel-<%= key %>" aria-selected="<%= index === 0 ? 'true' : 'false' %>" data-tab="<%= key %>"<% if (index) { %> tabindex="-1"<% } %>><%= label %></button>
+            <% }); %>
+        </div>
+        <div class="schema-panel" id="panel-tree" role="tabpanel" aria-labelledby="tab-tree">
+            <div class="schema-tree" role="tree" aria-label="<%= name %>" data-tree></div>
+            <p class="schema-tree-hint hint">Select a row to edit it. Arrow keys move between rows, Left and Right fold them.</p>
+        </div>
+        <div class="schema-panel" id="panel-json" role="tabpanel" aria-labelledby="tab-json" hidden>
+            <label for="schemaJson" class="sr-only">Schema as JSON</label>
+            <textarea class="code-editor schema-code" id="schemaJson" spellcheck="false" autocapitalize="off" autocomplete="off" wrap="off"></textarea>
+            <div class="alert alert-danger schema-panel-alert" role="alert" data-json-alert hidden>
+                <%- include('icon.html', { name: 'alert' }) %><span data-alert-text></span>
+            </div>
+            <div class="schema-panel-actions">
+                <button type="button" class="btn btn-secondary btn-sm" data-apply-json>Apply JSON</button>
+            </div>
+        </div>
+        <div class="schema-panel" id="panel-yaml" role="tabpanel" aria-labelledby="tab-yaml" hidden>
+            <pre class="schema-preview schema-code" data-yaml></pre>
+        </div>
+        <div class="schema-panel" id="panel-example" role="tabpanel" aria-labelledby="tab-example" hidden>
+            <p class="hint schema-example-hint">A payload that fits the schema, built from its examples, defaults, allowed values and formats.</p>
+            <pre class="schema-preview schema-code" data-example></pre>
+            <div class="schema-panel-actions">
+                <button type="button" class="btn btn-ghost btn-sm" data-copy-target="[data-example]"><%- include('icon.html', { name: 'copy' }) %>Copy</button>
+            </div>
+        </div>
+    </section>
+
+    <aside class="card schema-inspector" data-inspector aria-label="Selected row">
+        <div class="inspector-empty" data-inspector-empty>
+            <p class="muted">Select a row of the tree to edit it.</p>
+        </div>
+        <div class="inspector-content" data-inspector-content hidden>
+            <div class="inspector-top">
+                <p class="inspector-path" data-inspector-path></p>
+                <div class="inspector-moves" data-node-moves>
+                    <button type="button" class="btn btn-ghost btn-sm btn-icon" data-move="-1" aria-label="Move up" title="Move up"><%- include('icon.html', { name: 'arrow-up' }) %></button>
+                    <button type="button" class="btn btn-ghost btn-sm btn-icon" data-move="1" aria-label="Move down" title="Move down"><%- include('icon.html', { name: 'arrow-down' }) %></button>
+                    <button type="button" class="btn btn-ghost btn-sm btn-icon" data-delete-node aria-label="Delete property" title="Delete"><%- include('icon.html', { name: 'trash' }) %></button>
+                </div>
+            </div>
+            <div class="form inspector-form">
+                <div class="field">
+                    <label for="nodeName" data-name-label>Property name</label>
+                    <input class="input mono" type="text" id="nodeName" maxlength="100" autocomplete="off" spellcheck="false">
+                    <span class="hint field-error" data-name-error hidden></span>
+                </div>
+                <label class="checkbox-row" data-required-row><input type="checkbox" id="nodeRequired"> Required</label>
+                <div class="field" data-description-row>
+                    <label for="nodeDescription">Description <span class="label-optional">(optional)</span></label>
+                    <textarea class="textarea" id="nodeDescription" rows="2" maxlength="5000"></textarea>
+                </div>
+
+                <div class="field">
+                    <span class="label" id="kindLabel">Holds</span>
+                    <div class="segmented kind-picker" role="radiogroup" aria-labelledby="kindLabel">
+                        <% [['value', 'A value'], ['object', 'An object'], ['list', 'A list of objects'], ['ref', 'A schema'], ['json', 'JSON']].forEach(([value, label]) => { %>
+                            <label class="segmented-option"><input type="radio" name="nodeKind" value="<%= value %>"><span><%= label %></span></label>
+                        <% }); %>
+                    </div>
+                </div>
+
+                <div class="inspector-section" data-kind-section="value" hidden>
+                    <div class="field">
+                        <label for="nodeFieldPick">Start from a dictionary field <span class="label-optional">(optional)</span></label>
+                        <select class="select" id="nodeFieldPick">
+                            <option value="">Choose a field…</option>
+                            <% fields.forEach((field) => { %><option value="<%= field.id %>"><%= field.name %> · <%= field.summary %></option><% }); %>
+                        </select>
+                    </div>
+                    <div data-value-form>
+                        <%- include('field-form.html', { prefix: 'node', schemaOnly: true, embedded: true, fieldTypes, itemTypes }) %>
+                    </div>
+                    <p class="hint" data-value-json-note hidden>This value uses parts the form doesn't cover, so edit it as JSON.</p>
+                    <span class="hint field-error" data-value-error hidden></span>
+                </div>
+
+                <div class="inspector-section" data-kind-section="object" hidden>
+                    <div class="field">
+                        <label for="nodeExtra">Properties not listed</label>
+                        <select class="select" id="nodeExtra">
+                            <option value="">Allowed</option>
+                            <option value="false">Refused (additionalProperties: false)</option>
+                        </select>
+                    </div>
+                    <button type="button" class="btn btn-secondary btn-sm" data-add-child><%- include('icon.html', { name: 'plus' }) %>Add property</button>
+                </div>
+
+                <div class="inspector-section" data-kind-section="list" hidden>
+                    <p class="hint">Each item is an object. Its properties are the rows under this one.</p>
+                    <button type="button" class="btn btn-secondary btn-sm" data-add-child><%- include('icon.html', { name: 'plus' }) %>Add item property</button>
+                </div>
+
+                <div class="inspector-section" data-kind-section="ref" hidden>
+                    <div class="field">
+                        <label for="nodeRef">Schema</label>
+                        <select class="select" id="nodeRef"></select>
+                        <span class="hint">Dictionary objects are added to this document when you save.</span>
+                    </div>
+                    <label class="checkbox-row"><input type="checkbox" id="nodeRefList"> A list of these</label>
+                    <a class="link-button" href="#" data-open-ref hidden>Open this schema</a>
+                </div>
+
+                <div class="inspector-section" data-kind-section="json" hidden>
+                    <label for="nodeJson" class="sr-only">This row as JSON</label>
+                    <textarea class="code-editor code-editor-sm" id="nodeJson" spellcheck="false" autocapitalize="off" autocomplete="off" wrap="off"></textarea>
+                    <span class="hint field-error" data-node-json-error hidden></span>
+                    <button type="button" class="btn btn-secondary btn-sm" data-apply-node-json>Apply</button>
+                </div>
+            </div>
+        </div>
+    </aside>
+</div>

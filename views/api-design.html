@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <%- include('partials/head.html', { title: 'Design ' + api.name }) %>
+</head>
+<body>
+    <%- include('partials/app-nav.html', { active: 'catalogs' }) %>
+    <%
+    const opQuery = (op) => 'method=' + encodeURIComponent(op.method) + '&path=' + encodeURIComponent(op.path);
+    const apiUrl = '/api/org/apis/' + api.id;
+    const designUrl = '/developer/apis/' + api.id + '/design';
+    const docSchemas = components.filter((component) => !component.dictionaryId);
+    const byName = Object.fromEntries(components.map((component) => [component.name, component]));
+    // The select value describing a body that's already set: a dictionary object, a schema or a field.
+    const sourceValue = (content) => {
+        if (!content) return '';
+        if (content.fieldId) return 'field:' + content.fieldId;
+        const component = content.componentName && byName[content.componentName];
+        if (component) return component.dictionaryId ? 'object:' + component.dictionaryId : 'schema:' + component.name;
+        return '';
+    };
+    const statusClass = (status) => (/^[1-5]/.test(status) ? 'status-' + status[0] + 'xx' : '');
+    const needsUpdate = Object.values(sync.status).some((state) => state === 'outdated') || sync.missingNested.length || sync.outdatedUses;
+    const missing = Object.entries(sync.status).filter(([, state]) => state === 'missing').map(([name]) => name);
+    %>
+
+    <main id="main" class="page page-wide">
+        <%- include('partials/api-header.html', { api, current: 'design' }) %>
+
+        <% if (!operation) { %>
+            <section class="card">
+                <div class="empty-state">
+                    <div class="empty-icon"><%- include('partials/icon.html', { name: 'braces', className: 'icon-lg' }) %></div>
+                    <h3>No endpoints to design yet</h3>
+                    <p>Add an endpoint on the <a href="/developer/apis/<%= api.id %>">Overview</a> tab or in the <a href="/developer/apis/<%= api.id %>/source">source</a>, then describe its parameters and bodies here.</p>
+                </div>
+            </section>
+        <% } else { %>
+        <div class="design-layout">
+            <aside class="design-sidebar">
+                <section class="card">
+                    <div class="card-header">
+                        <div>
+                            <h2>Endpoints</h2>
+                            <p><%= api.operations.length %> in this document</p>
+                        </div>
+                    </div>
+                    <% if (api.operations.length > 8) { %>
+                        <div class="design-search">
+                            <label class="search">
+                                <%- include('partials/icon.html', { name: 'search' }) %>
+                                <span class="sr-only">Search endpoints</span>
+                                <input class="input" type="search" id="operationSearch" placeholder="Search endpoints" data-filter="#designOps" autocomplete="off">
+                            </label>
+                        </div>
+                    <% } %>
+                    <ul class="design-ops" id="designOps">
+                        <% api.operations.forEach((op) => { const current = op.method === operation.method && op.path === operation.path; %>
+                            <li data-search="<%= (op.method + ' ' + op.path + ' ' + op.summary).toLowerCase() %>">
+                                <a class="design-op" href="<%= designUrl %>?<%= opQuery(op) %>"<% if (current) { %> aria-current="page"<% } %>>
+                                    <span class="method method-<%= op.method %>"><%= op.method %></span>
+                                    <span class="design-op-main">
+                                        <code><%= op.path %></code>
+                                        <% if (op.summary) { %><small><%= op.summary %></small><% } %>
+                                    </span>
+                                </a>
+                            </li>
+                        <% }); %>
+                    </ul>
+                    <p class="no-results" data-filter-empty="#designOps" hidden>No endpoint matches.</p>
+                </section>
+
+                <section class="card" id="schemas">
+                    <div class="card-header">
+                        <div>
+                            <h2>Schemas in this document</h2>
+                            <p>components.schemas. Schemas from the dictionary are updated here when it changes.</p>
+                        </div>
+                    </div>
+                    <% if (needsUpdate) { %>
+                        <div class="card-body design-sync">
+                            <div class="alert alert-warning" role="status">
+                                <%- include('partials/icon.html', { name: 'refresh' }) %>
+                                <span>The dictionary changed since these were added.</span>
+                            </div>
+                            <button type="button" class="btn btn-secondary btn-sm"
+                                data-action="<%= apiUrl %>/components/refresh"
+                                data-confirm-title="Update from the dictionary?"
+                                data-confirm-message="Schemas, parameters and bodies taken from the dictionary are rewritten with its current version. Gateways get the change at the next push."
+                                data-confirm-label="Update"
+                                data-success="Updated from the dictionary">
+                                <%- include('partials/icon.html', { name: 'refresh' }) %>Update from dictionary
+                            </button>
+                        </div>
+                    <% } %>
+                    <% if (missing.length) { %>
+                        <div class="card-body design-sync">
+                            <p class="hint"><%= missing.join(', ') %> <%= missing.length === 1 ? 'was' : 'were' %> deleted from the dictionary. The document keeps <%= missing.length === 1 ? 'its' : 'their' %> copy.</p>
+                        </div>
+                    <% } %>
+                    <% if (components.length) { %>
+                        <ul class="schema-list">
+                            <% components.forEach((component) => { %>
+                                <li>
+                                    <a class="mono-name" href="/developer/apis/<%= api.id %>/schemas?name=<%= encodeURIComponent(component.name) %>" title="Open in the schema designer"><%= component.name %></a>
+                                    <span class="schema-chip"><%= component.schema %></span>
+                                    <% if (component.status === 'outdated') { %><span class="badge badge-warning">Out of date</span>
+                                    <% } else if (component.status === 'current') { %><span class="badge badge-success">Dictionary</span>
+                                    <% } else if (component.status === 'missing') { %><span class="badge">Removed from dictionary</span><% } %>
+                                </li>
+                            <% }); %>
+                        </ul>
+                    <% } else { %>
+                        <div class="card-body"><p class="muted">None yet. Using a dictionary object as a body adds it here.</p></div>
+                    <% } %>
+                    <div class="card-body design-import">
+                        <button type="button" class="btn btn-ghost btn-sm" id="importToDictionary" data-api-url="<%= apiUrl %>">
+                            <%- include('partials/icon.html', { name: 'database' }) %>Add this document to the dictionary
+                        </button>
+                    </div>
+                </section>
+            </aside>
+
+            <div class="design-main stack" id="operation" data-api-url="<%= apiUrl %>" data-method="<%= operation.method %>" data-path="<%= operation.path %>">
+                <section class="card">
+                    <div class="design-op-title">
+                        <span class="method method-<%= operation.method %>"><%= operation.method %></span>
+                        <h2><code><%= operation.path %></code></h2>
+                        <% if (operation.deprecated) { %><span class="badge badge-warning">Deprecated</span><% } %>
+                    </div>
+                    <form id="infoForm" class="card-body form">
+                        <div class="field-row">
+                            <div class="field">
+                                <label for="opSummary">Summary</label>
+                                <input class="input" type="text" id="opSummary" name="summary" value="<%= operation.summary %>" maxlength="255" placeholder="Get an order">
+                            </div>
+                            <div class="field">
+                                <label for="opId">Operation ID <span class="label-optional">(optional)</span></label>
+                                <input class="input mono" type="text" id="opId" name="operationId" value="<%= operation.operationId %>" maxlength="100" placeholder="getOrder" autocomplete="off" spellcheck="false">
+                            </div>
+                        </div>
+                        <div class="field">
+                            <label for="opDescription">Description <span class="label-optional">(optional)</span></label>
+                            <textarea class="textarea" id="opDescription" name="description" rows="2" maxlength="5000"><%= operation.description %></textarea>
+                        </div>
+                        <label class="checkbox-row"><input type="checkbox" name="deprecated" <%= operation.deprecated ? 'checked' : '' %>> Deprecated: clients should stop using it</label>
+                        <div id="info-alert" class="alert alert-danger" role="alert" hidden>
+                            <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-secondary btn-sm">Save details</button>
+                        </div>
+                    </form>
+                </section>
+
+                <section class="card" id="parameters">
+                    <div class="card-header">
+                        <div>
+                            <h2>Parameters</h2>
+                            <p>Path, query, header and cookie values. A Validate request step checks headers and query strings against them.</p>
+                        </div>
+                    </div>
+                    <% if (operation.missingPathParams.length) { %>
+                        <div class="card-body design-missing">
+                            <div class="alert alert-warning" role="status">
+                                <%- include('partials/icon.html', { name: 'alert' }) %>
+                                <span>The path has <% operation.missingPathParams.forEach((name, index) => { %><%= index ? ', ' : '' %><code>{<%= name %>}</code><% }); %> but no parameter describes <%= operation.missingPathParams.length === 1 ? 'it' : 'them' %>.</span>
+                            </div>
+                            <div class="design-missing-actions">
+                                <% operation.missingPathParams.forEach((name) => { %>
+                                    <button type="button" class="btn btn-secondary btn-sm" data-describe-path="<%= name %>"><%- include('partials/icon.html', { name: 'plus' }) %>Describe {<%= name %>}</button>
+                                <% }); %>
+                            </div>
+                        </div>
+                    <% } %>
+                    <% if (operation.parameters.length) { %>
+                        <div class="table-wrap">
+                            <table class="table">
+                                <thead>
+                                    <tr><th scope="col">Name</th><th scope="col">Value</th><th scope="col">Required</th><th scope="col"><span class="sr-only">Actions</span></th></tr>
+                                </thead>
+                                <tbody>
+                                    <% operation.parameters.forEach((param) => { %>
+                                        <tr>
+                                            <td>
+                                                <div class="param-name">
+                                                    <span class="location location-<%= param.in %>"><%= param.in %></span>
+                                                    <code><%= param.name %></code>
+                                                </div>
+                                                <% if (param.description) { %><div class="cell-secondary"><%= param.description %></div><% } %>
+                                            </td>
+                                            <td>
+                                                <span class="schema-chip"><%= param.schema %></span>
+                                                <% if (param.fieldId && fieldNames[param.fieldId]) { %>
+                                                    <a class="dictionary-link" href="/developer/dictionary/fields/<%= param.fieldId %>"><%- include('partials/icon.html', { name: 'database', className: 'icon-sm' }) %><%= fieldNames[param.fieldId] %></a>
+                                                <% } %>
+                                                <% if (param.level === 'path') { %><span class="badge">Every operation on this path</span><% } %>
+                                                <% if (param.shared) { %><span class="badge">Shared: <%= param.shared %></span><% } %>
+                                            </td>
+                                            <td><%= param.required ? 'Yes' : 'No' %></td>
+                                            <td class="actions-cell">
+                                                <button type="button" class="btn btn-ghost btn-sm btn-icon" data-edit-parameter
+                                                    data-parameter="<%= JSON.stringify({ in: param.in, name: param.name, required: param.required, description: param.description, deprecated: param.deprecated, level: param.level, shared: param.shared, fieldId: param.fieldId, fieldName: param.fieldId ? fieldNames[param.fieldId] || null : null, rawSchema: param.rawSchema, formSchema: param.formSchema }) %>"
+                                                    aria-label="Edit parameter <%= param.name %>" title="Edit">
+                                                    <%- include('partials/icon.html', { name: 'edit' }) %>
+                                                </button>
+                                                <% if (param.level === 'operation') { %>
+                                                    <button type="button" class="btn btn-ghost btn-sm btn-icon"
+                                                        data-action="<%= apiUrl %>/operations/parameters?<%= opQuery(operation) %>&in=<%= encodeURIComponent(param.in) %>&name=<%= encodeURIComponent(param.name) %>"
+                                                        data-method="DELETE"
+                                                        data-confirm-title="Remove <%= param.name %>?"
+                                                        data-confirm-message="The <%= param.in %> parameter <%= param.name %> is removed from <%= operation.method.toUpperCase() %> <%= operation.path %>."
+                                                        data-confirm-label="Remove" data-danger
+                                                        data-success="Parameter removed"
+                                                        aria-label="Remove parameter <%= param.name %>" title="Remove">
+                                                        <%- include('partials/icon.html', { name: 'trash' }) %>
+                                                    </button>
+                                                <% } %>
+                                            </td>
+                                        </tr>
+                                    <% }); %>
+                                </tbody>
+                            </table>
+                        </div>
+                    <% } else { %>
+                        <div class="card-body"><p class="muted">No parameters.</p></div>
+                    <% } %>
+
+                    <form id="parameterForm" class="card-footer-form">
+                        <span class="label">Add a parameter</span>
+                        <div class="field-row">
+                            <div class="field field-narrow">
+                                <label for="paramIn">Location</label>
+                                <select class="select" id="paramIn" name="in">
+                                    <% locations.forEach((location) => { %><option value="<%= location %>"><%= location %></option><% }); %>
+                                </select>
+                            </div>
+                            <div class="field">
+                                <label for="paramField">Field</label>
+                                <select class="select" id="paramField" name="fieldId" <%= dictionary.fields.length ? '' : 'disabled' %>>
+                                    <% if (dictionary.fields.length) { %>
+                                        <% dictionary.fields.forEach((field) => { %><option value="<%= field.id %>"><%= field.name %> · <%= field.summary %></option><% }); %>
+                                    <% } else { %>
+                                        <option value="">No fields in the dictionary yet</option>
+                                    <% } %>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="field-row">
+                            <div class="field">
+                                <label for="paramName">Name <span class="label-optional">(optional)</span></label>
+                                <input class="input mono" type="text" id="paramName" name="name" maxlength="100" placeholder="Same as the field" autocomplete="off" spellcheck="false">
+                            </div>
+                            <div class="field">
+                                <label for="paramDescription">Description <span class="label-optional">(optional)</span></label>
+                                <input class="input" type="text" id="paramDescription" name="description" maxlength="5000" placeholder="The field's description">
+                            </div>
+                        </div>
+                        <label class="checkbox-row"><input type="checkbox" name="required" id="paramRequired"> Required (path parameters always are)</label>
+
+                        <div class="builder-field-panel" id="paramFieldPanel" <%= dictionary.fields.length ? 'hidden' : '' %>>
+                            <p class="builder-field-title">New field for the dictionary, used for this parameter</p>
+                            <%- include('partials/field-form.html', { prefix: 'param', compact: true, embedded: true, fieldTypes, itemTypes }) %>
+                        </div>
+
+                        <div id="parameter-alert" class="alert alert-danger" role="alert" hidden>
+                            <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                        </div>
+                        <div class="form-actions">
+                            <% if (dictionary.fields.length) { %>
+                                <button type="button" class="btn btn-ghost btn-sm" id="paramNewField" aria-expanded="false" aria-controls="paramFieldPanel">New field instead</button>
+                            <% } %>
+                            <button type="submit" class="btn btn-secondary btn-sm"><%- include('partials/icon.html', { name: 'plus' }) %>Add parameter</button>
+                        </div>
+                    </form>
+                </section>
+
+                <section class="card" id="request-body">
+                    <div class="card-header">
+                        <div>
+                            <h2>Request body</h2>
+                            <p>What clients send. A Validate body step checks it.</p>
+                        </div>
+                    </div>
+                    <% if (!operation.allowsBody) { %>
+                        <div class="card-body"><p class="muted"><%= operation.method.toUpperCase() %> requests have no body.</p></div>
+                    <% } else { %>
+                        <% const body = operation.requestBody; %>
+                        <% if (body && body.shared) { %>
+                            <div class="card-body"><p class="muted">Defined in components.requestBodies.<%= body.shared %>. Edit it in the <a href="/developer/apis/<%= api.id %>/source">source</a>.</p></div>
+                        <% } %>
+                        <% if (body && body.content.length) { %>
+                            <ul class="content-list">
+                                <% body.content.forEach((content) => { %>
+                                    <li>
+                                        <code class="content-type"><%= content.type %></code>
+                                        <span class="schema-chip"><%= content.schema %></span>
+                                        <% if (body.required) { %><span class="badge">Required</span><% } %>
+                                        <% if (!body.shared) { %><%- include('partials/content-schema-link.html', { api, operation, content, status: null }) %><% } %>
+                                        <% if (!body.shared) { %>
+                                            <button type="button" class="btn btn-ghost btn-sm btn-icon"
+                                                data-action="<%= apiUrl %>/operations/body?<%= opQuery(operation) %>&contentType=<%= encodeURIComponent(content.type) %>"
+                                                data-method="DELETE"
+                                                data-confirm-title="Remove the <%= content.type %> body?"
+                                                data-confirm-message="Clients will no longer be told to send it."
+                                                data-confirm-label="Remove" data-danger
+                                                data-success="Request body removed"
+                                                aria-label="Remove the <%= content.type %> body" title="Remove">
+                                                <%- include('partials/icon.html', { name: 'trash' }) %>
+                                            </button>
+                                        <% } %>
+                                    </li>
+                                <% }); %>
+                            </ul>
+                        <% } else if (!body) { %>
+                            <div class="card-body"><p class="muted">No request body.</p></div>
+                        <% } %>
+                        <% if (!body || !body.shared) { %>
+                            <form id="bodyForm" class="card-footer-form" data-source-form>
+                                <span class="label"><%= body ? 'Set a body' : 'Add a body' %></span>
+                                <div class="field-row">
+                                    <div class="field">
+                                        <label for="bodySource">Described by</label>
+                                        <select class="select" id="bodySource" name="source" data-source-select required>
+                                            <option value="">Choose a schema…</option>
+                                            <%- include('partials/source-options.html', { dictionary, docSchemas, selected: sourceValue(body && body.content[0]) }) %>
+                                        </select>
+                                    </div>
+                                    <div class="field field-content-type">
+                                        <label for="bodyType">Content type</label>
+                                        <input class="input mono" type="text" id="bodyType" name="contentType" value="<%= body && body.content[0] ? body.content[0].type : 'application/json' %>" list="contentTypes" maxlength="100" autocomplete="off" spellcheck="false">
+                                    </div>
+                                </div>
+                                <div class="checkbox-inline-group">
+                                    <label class="checkbox-row"><input type="checkbox" name="isArray" <%= body && body.content[0] && body.content[0].isArray ? 'checked' : '' %>> A list of these</label>
+                                    <label class="checkbox-row"><input type="checkbox" name="required" <%= !body || body.required ? 'checked' : '' %>> Clients must send a body</label>
+                                </div>
+                                <div id="body-alert" class="alert alert-danger" role="alert" hidden>
+                                    <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                                </div>
+                                <div class="form-actions">
+                                    <button type="button" class="btn btn-ghost btn-sm" data-new-object><%- include('partials/icon.html', { name: 'plus' }) %>New object</button>
+                                    <button type="submit" class="btn btn-secondary btn-sm">Save body</button>
+                                </div>
+                            </form>
+                        <% } %>
+                    <% } %>
+                </section>
+
+                <section class="card" id="responses">
+                    <div class="card-header">
+                        <div>
+                            <h2>Responses</h2>
+                            <p>What the API answers, by status code.</p>
+                        </div>
+                    </div>
+                    <% if (operation.responses.length) { %>
+                        <ul class="response-list">
+                            <% operation.responses.forEach((response) => { %>
+                                <li>
+                                    <span class="status-code <%= statusClass(response.status) %>"><%= response.status %></span>
+                                    <div class="response-main">
+                                        <span><%= response.description || 'No description' %></span>
+                                        <% if (response.shared) { %><span class="badge">Shared: <%= response.shared %></span><% } %>
+                                        <% response.content.forEach((content) => { %>
+                                            <span class="response-content"><code class="content-type"><%= content.type %></code><span class="schema-chip"><%= content.schema %></span><% if (!response.shared) { %><%- include('partials/content-schema-link.html', { api, operation, content, status: response.status }) %><% } %></span>
+                                        <% }); %>
+                                        <% if (!response.content.length) { %><span class="muted text-sm">No body</span><% } %>
+                                    </div>
+                                    <% if (operation.responses.length > 1) { %>
+                                        <button type="button" class="btn btn-ghost btn-sm btn-icon"
+                                            data-action="<%= apiUrl %>/operations/responses?<%= opQuery(operation) %>&status=<%= encodeURIComponent(response.status) %>"
+                                            data-method="DELETE"
+                                            data-confirm-title="Remove the <%= response.status %> response?"
+                                            data-confirm-message="It is removed from <%= operation.method.toUpperCase() %> <%= operation.path %>."
+                                            data-confirm-label="Remove" data-danger
+                                            data-success="Response removed"
+                                            aria-label="Remove the <%= response.status %> response" title="Remove">
+                                            <%- include('partials/icon.html', { name: 'trash' }) %>
+                                        </button>
+                                    <% } %>
+                                </li>
+                            <% }); %>
+                        </ul>
+                    <% } %>
+                    <form id="responseForm" class="card-footer-form" data-source-form>
+                        <span class="label">Add or change a response</span>
+                        <div class="field-row">
+                            <div class="field field-narrow">
+                                <label for="responseStatus">Status</label>
+                                <input class="input mono" type="text" id="responseStatus" name="status" list="statusCodes" maxlength="7" placeholder="200" autocomplete="off" required>
+                            </div>
+                            <div class="field">
+                                <label for="responseDescription">Description</label>
+                                <input class="input" type="text" id="responseDescription" name="description" maxlength="5000" placeholder="The order">
+                            </div>
+                        </div>
+                        <div class="field-row">
+                            <div class="field">
+                                <label for="responseSource">Body</label>
+                                <select class="select" id="responseSource" name="source" data-source-select>
+                                    <option value="">No body</option>
+                                    <%- include('partials/source-options.html', { dictionary, docSchemas, selected: '' }) %>
+                                </select>
+                            </div>
+                            <div class="field field-content-type">
+                                <label for="responseType">Content type</label>
+                                <input class="input mono" type="text" id="responseType" name="contentType" value="application/json" list="contentTypes" maxlength="100" autocomplete="off" spellcheck="false">
+                            </div>
+                        </div>
+                        <label class="checkbox-row"><input type="checkbox" name="isArray"> A list of these</label>
+                        <div id="response-alert" class="alert alert-danger" role="alert" hidden>
+                            <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                        </div>
+                        <div class="form-actions">
+                            <button type="button" class="btn btn-ghost btn-sm" data-new-object><%- include('partials/icon.html', { name: 'plus' }) %>New object</button>
+                            <button type="submit" class="btn btn-secondary btn-sm">Save response</button>
+                        </div>
+                    </form>
+                </section>
+            </div>
+        </div>
+
+        <datalist id="contentTypes">
+            <% ['application/json', 'application/xml', 'application/x-www-form-urlencoded', 'multipart/form-data', 'text/plain', 'application/problem+json'].forEach((type) => { %><option value="<%= type %>"></option><% }); %>
+        </datalist>
+        <datalist id="statusCodes">
+            <% [['200', 'OK'], ['201', 'Created'], ['202', 'Accepted'], ['204', 'No Content'], ['400', 'Bad Request'], ['401', 'Unauthorized'], ['403', 'Forbidden'], ['404', 'Not Found'], ['409', 'Conflict'], ['422', 'Unprocessable Content'], ['429', 'Too Many Requests'], ['500', 'Internal Server Error'], ['default', 'Any other status']].forEach(([code, label]) => { %><option value="<%= code %>"><%= label %></option><% }); %>
+        </datalist>
+
+        <dialog class="modal modal-wide" id="parameterDialog" aria-labelledby="parameterDialogTitle">
+            <form class="modal-content form" id="parameterDialogForm" method="dialog">
+                <div>
+                    <h2 class="modal-title" id="parameterDialogTitle">Edit parameter</h2>
+                    <p class="param-dialog-name"><span class="location" data-param-location></span> <code data-param-name></code></p>
+                </div>
+                <div class="alert alert-warning" role="status" data-param-scope hidden>
+                    <%- include('partials/icon.html', { name: 'alert' }) %><span data-param-scope-text></span>
+                </div>
+                <div class="field">
+                    <label for="editParamDescription">Description <span class="label-optional">(optional)</span></label>
+                    <input class="input" type="text" id="editParamDescription" name="description" maxlength="5000">
+                </div>
+                <div class="checkbox-inline-group">
+                    <label class="checkbox-row"><input type="checkbox" name="required" id="editParamRequired"> Required</label>
+                    <label class="checkbox-row"><input type="checkbox" name="deprecated" id="editParamDeprecated"> Deprecated</label>
+                </div>
+
+                <div class="param-schema-head">
+                    <span class="label">Schema</span>
+                    <div class="segmented" role="radiogroup" aria-label="Edit the schema with">
+                        <label class="segmented-option"><input type="radio" name="schemaMode" value="form" checked><span>Form</span></label>
+                        <label class="segmented-option"><input type="radio" name="schemaMode" value="json"><span>JSON</span></label>
+                    </div>
+                </div>
+                <p class="hint" data-form-unavailable hidden>This schema uses parts the form doesn't cover (such as $ref, oneOf or extra keywords), so it is edited as JSON.</p>
+                <div data-param-form>
+                    <%- include('partials/field-form.html', { prefix: 'editParam', schemaOnly: true, embedded: true, fieldTypes, itemTypes }) %>
+                </div>
+                <div class="field" data-param-json hidden>
+                    <label for="editParamJson" class="sr-only">Schema as JSON</label>
+                    <textarea class="code-editor code-editor-sm" id="editParamJson" spellcheck="false" autocapitalize="off" autocomplete="off" wrap="off"></textarea>
+                </div>
+                <div data-param-field hidden>
+                    <label class="checkbox-row"><input type="checkbox" name="updateField" id="editParamUpdateField"> Also change the dictionary field <code data-param-field-name></code></label>
+                    <span class="hint" data-param-field-hint>Otherwise a changed schema belongs to this parameter only, and it is no longer linked to the field.</span>
+                </div>
+
+                <div id="parameter-dialog-alert" class="alert alert-danger" role="alert" hidden>
+                    <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" data-dialog-cancel>Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save parameter</button>
+                </div>
+            </form>
+        </dialog>
+
+        <dialog class="modal modal-wide" id="objectDialog" aria-labelledby="objectDialogTitle">
+            <form class="modal-content form" id="objectDialogForm" method="dialog">
+                <h2 class="modal-title" id="objectDialogTitle">New object</h2>
+                <p class="modal-message">Added to the dictionary and chosen for this body. Its properties are fields or other objects.</p>
+                <div class="field-row">
+                    <div class="field">
+                        <label for="dialogObjectName">Name</label>
+                        <input class="input mono" type="text" id="dialogObjectName" name="name" maxlength="100" placeholder="CreateOrderRequest" autocomplete="off" spellcheck="false" required>
+                    </div>
+                    <div class="field">
+                        <label for="dialogObjectDescription">Description <span class="label-optional">(optional)</span></label>
+                        <input class="input" type="text" id="dialogObjectDescription" name="description" maxlength="5000">
+                    </div>
+                </div>
+                <div data-dialog-builder data-choices="<%= JSON.stringify(dictionary) %>">
+                    <%- include('partials/object-builder.html', { prefix: 'dialog', fieldTypes, itemTypes }) %>
+                </div>
+                <div id="dialog-alert" class="alert alert-danger" role="alert" hidden>
+                    <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" data-dialog-cancel>Cancel</button>
+                    <button type="submit" class="btn btn-primary" value="create">Create object</button>
+                </div>
+            </form>
+        </dialog>
+        <% } %>
+    </main>
+
+    <script src="/js/ui.js"></script>
+    <script src="/js/field-form.js"></script>
+    <script src="/js/object-builder.js"></script>
+    <script src="/js/api-design.js"></script>
+</body>
+</html>

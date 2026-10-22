@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <%- include('partials/head.html', { title: 'Connections' }) %>
+</head>
+<body>
+    <%- include('partials/app-nav.html', { active: 'gateways' }) %>
+
+    <main id="main" class="page">
+        <%- include('partials/runtime-tabs.html', { current: 'connections' }) %>
+        <div class="page-header">
+            <div>
+                <h1>Connections</h1>
+                <p class="page-subtitle">How gateways reach your backends: timeouts, retries, a circuit breaker, upstream credentials and TLS (your own CA and client certificates for mTLS). Choose a connection under "Gateway" on an API's page.</p>
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <section class="card">
+                <% if (connections.length) { %>
+                    <ul class="app-list">
+                        <% connections.forEach((connection) => { %>
+                            <li>
+                                <a class="app-row" href="/developer/connections/<%= connection.id %>">
+                                    <span class="app-avatar"><%- include('partials/icon.html', { name: 'link', className: 'icon-sm' }) %></span>
+                                    <span class="app-row-main">
+                                        <span class="cell-primary"><%= connection.name %></span>
+                                        <span class="cell-secondary">
+                                            <%= connection.timeoutMs.toLocaleString('en-US') %> ms timeout · <%= connection.retries %> retr<%= connection.retries === 1 ? 'y' : 'ies' %>
+                                            <% if (connection.circuitBreaker.enabled) { %> · circuit breaker<% } %>
+                                            <% if (connection.auth.type !== 'none') { %> · <%= connection.auth.type %> auth<% } %>
+                                            <% if (connection.tls.clientCertificate) { %> · mTLS<% } %>
+                                        </span>
+                                    </span>
+                                    <span class="badge"><%= connection.apis.length %> API<%= connection.apis.length === 1 ? '' : 's' %></span>
+                                    <%- include('partials/icon.html', { name: 'chevron-right' }) %>
+                                </a>
+                            </li>
+                        <% }); %>
+                    </ul>
+                <% } else { %>
+                    <div class="empty-state">
+                        <div class="empty-icon"><%- include('partials/icon.html', { name: 'link', className: 'icon-lg' }) %></div>
+                        <h3>No connections yet</h3>
+                        <p>Without one, gateways call upstreams with a 30 second timeout, no retries and the system's trusted CAs.</p>
+                    </div>
+                <% } %>
+            </section>
+
+            <aside class="card">
+                <div class="card-header">
+                    <div>
+                        <h2>New connection</h2>
+                        <p>Starts with safe defaults you can change on the next page.</p>
+                    </div>
+                </div>
+                <form id="connectionForm" class="card-body form">
+                    <div class="field">
+                        <label for="connectionName">Name</label>
+                        <input class="input" type="text" id="connectionName" name="name" maxlength="255" placeholder="Orders backend (mTLS)" required>
+                    </div>
+                    <div id="form-alert" class="alert alert-danger" role="alert" hidden>
+                        <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary"><%- include('partials/icon.html', { name: 'plus' }) %>Create connection</button>
+                    </div>
+                </form>
+            </aside>
+        </div>
+    </main>
+
+    <script src="/js/ui.js"></script>
+    <script src="/js/connections.js"></script>
+</body>
+</html>

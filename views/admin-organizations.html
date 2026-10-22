@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <%- include('partials/head.html', { title: 'Organizations' }) %>
+</head>
+<body>
+    <%- include('partials/app-nav.html', { active: 'admin' }) %>
+
+    <main id="main" class="page">
+        <nav class="breadcrumb" aria-label="Breadcrumb">
+            <a href="/developer/admin">Admin</a>
+            <%- include('partials/icon.html', { name: 'chevron-right' }) %>
+            <span aria-current="page">Organizations</span>
+        </nav>
+        <div class="page-header">
+            <div>
+                <p class="page-eyebrow">Administration</p>
+                <h1>Organizations</h1>
+                <p class="page-subtitle">Every tenant on the platform. Open one to manage its members and catalogs, or switch into it to work as its admin.</p>
+            </div>
+        </div>
+
+        <div class="grid-2 grid-2-wide">
+            <section class="card">
+                <div class="card-header">
+                    <div>
+                        <h2><%= organizations.length %> organization<%= organizations.length === 1 ? '' : 's' %></h2>
+                    </div>
+                    <label class="search">
+                        <span class="sr-only">Search organizations</span>
+                        <%- include('partials/icon.html', { name: 'search' }) %>
+                        <input class="input" type="search" placeholder="Search organizations" data-filter="#organizations-table">
+                    </label>
+                </div>
+                <div class="table-wrap">
+                    <table class="table" id="organizations-table">
+                        <thead>
+                            <tr>
+                                <th>Organization</th>
+                                <th class="num">Members</th>
+                                <th class="num">Catalogs</th>
+                                <th class="num hide-sm">Products</th>
+                                <th class="num hide-sm">APIs</th>
+                                <th class="num hide-sm">Gateways</th>
+                                <th><span class="sr-only">Actions</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <% organizations.forEach((organization) => { const admins = organization.members.filter((member) => member.orgRole === 'admin'); %>
+                                <tr data-search="<%= [organization.name].concat(organization.members.map((member) => member.email)).join(' ').toLowerCase() %>">
+                                    <td>
+                                        <div class="user-cell">
+                                            <span class="org-switcher-mark" aria-hidden="true"><%= initials(organization.name) %></span>
+                                            <div>
+                                                <a class="cell-primary" href="/developer/admin/organizations/<%= organization.id %>"><%= organization.name %></a>
+                                                <div class="cell-secondary"><%= admins.length ? 'Admins: ' + admins.map((member) => member.name).join(', ') : 'No admin' %></div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="num"><%= organization.counts.members %></td>
+                                    <td class="num"><%= organization.counts.catalogs %></td>
+                                    <td class="num hide-sm"><%= organization.counts.products %></td>
+                                    <td class="num hide-sm"><%= organization.counts.apis %></td>
+                                    <td class="num hide-sm"><%= organization.counts.gateways %></td>
+                                    <td class="actions-cell">
+                                        <a class="btn btn-secondary btn-sm" href="/developer/admin/organizations/<%= organization.id %>">Manage</a>
+                                    </td>
+                                </tr>
+                            <% }); %>
+                        </tbody>
+                    </table>
+                    <p class="no-results" data-filter-empty="#organizations-table" <%= organizations.length ? 'hidden' : '' %>>No organizations match.</p>
+                </div>
+            </section>
+
+            <aside class="card">
+                <div class="card-header">
+                    <div>
+                        <h2>New organization</h2>
+                        <p>Optionally make an existing account its first admin.</p>
+                    </div>
+                </div>
+                <form id="newOrganizationForm" class="card-body form">
+                    <div class="field">
+                        <label for="organizationName">Name</label>
+                        <input class="input" type="text" id="organizationName" name="name" minlength="2" maxlength="100" required>
+                    </div>
+                    <div class="field">
+                        <label for="adminEmail">First admin's email <span class="label-optional">(optional)</span></label>
+                        <input class="input" type="email" id="adminEmail" name="adminEmail" placeholder="owner@company.com">
+                    </div>
+                    <div id="form-alert" class="alert alert-danger" role="alert" hidden>
+                        <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary"><%- include('partials/icon.html', { name: 'plus' }) %>Create organization</button>
+                    </div>
+                </form>
+            </aside>
+        </div>
+    </main>
+
+    <script src="/js/ui.js"></script>
+    <script src="/js/admin-organizations.js"></script>
+</body>
+</html>

@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <%- include('partials/head.html', { title: 'User directory' }) %>
+</head>
+<body>
+    <%- include('partials/app-nav.html', { active: 'admin' }) %>
+
+    <main id="main" class="page">
+        <nav class="breadcrumb" aria-label="Breadcrumb">
+            <a href="/developer/admin">Admin</a>
+            <%- include('partials/icon.html', { name: 'chevron-right' }) %>
+            <span aria-current="page">Directory</span>
+        </nav>
+        <div class="page-header">
+            <div>
+                <h1>User directory</h1>
+                <p class="page-subtitle"><%= profiles.length %> profile<%= profiles.length === 1 ? '' : 's' %>, newest first.</p>
+            </div>
+            <div class="page-actions">
+                <label class="search">
+                    <span class="sr-only">Search profiles</span>
+                    <%- include('partials/icon.html', { name: 'search' }) %>
+                    <input class="input" type="search" placeholder="Search by name or email" data-filter="#directory">
+                </label>
+                <a href="/developer/admin/users/new" class="btn btn-primary"><%- include('partials/icon.html', { name: 'plus' }) %>Create user</a>
+            </div>
+        </div>
+
+        <div class="directory" id="directory">
+            <% profiles.forEach((profile) => { %>
+                <article class="card person-card" data-search="<%= (profile.name + ' ' + profile.email).toLowerCase() %>">
+                    <div class="person-head">
+                        <span class="avatar"><%= initials(profile.name) %></span>
+                        <div>
+                            <div class="person-name"><%= profile.name %></div>
+                            <div class="person-email"><%= profile.email %></div>
+                            <div class="person-email"><%= profile.organizations.length ? profile.organizations.map((organization) => organization.name + (organization.role === 'admin' ? ' (admin)' : '')).join(', ') : 'No organization' %></div>
+                        </div>
+                    </div>
+                    <div class="badges">
+                        <span class="badge <%= profile.role === 'admin' ? 'badge-admin' : '' %>"><%= profile.role === 'admin' ? 'Admin' : 'User' %></span>
+                        <% if (profile.isVerified) { %>
+                            <span class="badge badge-success badge-dot">Verified</span>
+                        <% } else { %>
+                            <span class="badge badge-warning badge-dot">Not verified</span>
+                        <% } %>
+                    </div>
+                    <div class="person-meta">
+                        <span>Joined <%= formatDate(profile.createdAt) %></span>
+                        <a href="/developer/admin/users/<%= profile.id %>" class="btn btn-ghost btn-sm">Manage <%- include('partials/icon.html', { name: 'arrow-right' }) %></a>
+                    </div>
+                </article>
+            <% }); %>
+        </div>
+        <p class="no-results" data-filter-empty="#directory" hidden>No profiles match your search.</p>
+    </main>
+
+    <script src="/js/ui.js"></script>
+</body>
+</html>

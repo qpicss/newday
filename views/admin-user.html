@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <%- include('partials/head.html', { title: targetUser.name }) %>
+</head>
+<body>
+    <%- include('partials/app-nav.html', { active: 'admin' }) %>
+    <% const isSelf = targetUser.id === user.id; %>
+
+    <main id="main" class="page">
+        <nav class="breadcrumb" aria-label="Breadcrumb">
+            <a href="/developer/admin">Admin</a>
+            <%- include('partials/icon.html', { name: 'chevron-right' }) %>
+            <span aria-current="page" data-user-name><%= targetUser.name %></span>
+        </nav>
+        <div class="page-header">
+            <div class="user-cell">
+                <span class="avatar avatar-lg" data-user-initials><%= initials(targetUser.name) %></span>
+                <div>
+                    <h1 data-user-name><%= targetUser.name %></h1>
+                    <p class="page-subtitle" data-user-email><%= targetUser.email %></p>
+                    <div class="badges">
+                        <span class="badge <%= targetUser.role === 'admin' ? 'badge-admin' : '' %>"><%= targetUser.role === 'admin' ? 'Admin' : 'User' %></span>
+                        <% if (targetUser.isVerified) { %>
+                            <span class="badge badge-success badge-dot">Verified</span>
+                        <% } else { %>
+                            <span class="badge badge-warning badge-dot">Unverified</span>
+                        <% } %>
+                        <% if (isSelf) { %><span class="badge badge-primary">You</span><% } %>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <div class="stack">
+                <section class="card" id="profile">
+                    <div class="card-header">
+                        <div>
+                            <h2>Profile</h2>
+                            <p>Name, email, access level and verification.</p>
+                        </div>
+                    </div>
+                    <form id="editUserForm" class="card-body form" data-user-id="<%= targetUser.id %>">
+                        <% if (isSelf) { %>
+                            <div class="alert alert-info" role="status">
+                                <%- include('partials/icon.html', { name: 'info' }) %>
+                                <div><strong>This is your account.</strong>You can't remove your own admin role, so the role setting is locked.</div>
+                            </div>
+                        <% } %>
+                        <div class="field">
+                            <label for="name">Full name</label>
+                            <input class="input" type="text" id="name" name="name" value="<%= targetUser.name %>" maxlength="100" required>
+                        </div>
+                        <div class="field">
+                            <label for="email">Email</label>
+                            <input class="input" type="email" id="email" name="email" value="<%= targetUser.email %>" required>
+                        </div>
+                        <div class="field">
+                            <label for="role">Role</label>
+                            <select class="select" id="role" name="role" <%= isSelf ? 'disabled' : '' %>>
+                                <option value="user" <%= targetUser.role === 'user' ? 'selected' : '' %>>User: can manage their own applications</option>
+                                <option value="admin" <%= targetUser.role === 'admin' ? 'selected' : '' %>>Admin: can also manage all users</option>
+                            </select>
+                        </div>
+                        <label class="switch-row" for="isVerified">
+                            <input type="checkbox" class="switch" id="isVerified" name="isVerified" <%= targetUser.isVerified ? 'checked' : '' %>>
+                            <span>
+                                <strong>Verified</strong>
+                                <span class="hint">Verified accounts are marked as trusted throughout the console.</span>
+                            </span>
+                        </label>
+
+                        <div id="form-alert" class="alert alert-danger" role="alert" hidden>
+                            <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">Save profile</button>
+                        </div>
+                    </form>
+                </section>
+
+                <section class="card" id="applications">
+                    <div class="card-header">
+                        <div>
+                            <h2>Applications</h2>
+                            <p><%= applications.length %> application<%= applications.length === 1 ? '' : 's' %> owned by <%= targetUser.name %>.</p>
+                        </div>
+                    </div>
+                    <% if (applications.length) { %>
+                        <%- include('partials/admin-app-table.html', { tableId: 'user-applications', showOwner: false, compact: true }) %>
+                    <% } else { %>
+                        <div class="empty-state">
+                            <div class="empty-icon"><%- include('partials/icon.html', { name: 'grid', className: 'icon-lg' }) %></div>
+                            <h3>No applications</h3>
+                            <p>This user hasn't registered any OAuth applications yet.</p>
+                        </div>
+                    <% } %>
+                </section>
+            </div>
+
+            <div class="stack">
+                <section class="card">
+                    <div class="card-header">
+                        <div>
+                            <h2>Account</h2>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <dl class="detail-list">
+                            <div><dt>Joined</dt><dd><%= formatDate(targetUser.createdAt) %></dd></div>
+                            <div><dt>Last updated</dt><dd><%= formatDate(targetUser.updatedAt) %></dd></div>
+                            <div>
+                                <dt>User ID</dt>
+                                <dd>
+                                    <span class="code-pill">
+                                        <code id="user-id"><%= targetUser.id %></code>
+                                        <button type="button" class="copy-btn" data-copy-target="#user-id" aria-label="Copy user ID"><%- include('partials/icon.html', { name: 'copy' }) %></button>
+                                    </span>
+                                </dd>
+                            </div>
+                        </dl>
+                    </div>
+                </section>
+
+                <section class="card" id="organizations">
+                    <div class="card-header">
+                        <div>
+                            <h2>Organizations</h2>
+                            <p>Where this user works and with which role.</p>
+                        </div>
+                    </div>
+                    <% if (memberships.length) { %>
+                        <ul class="operation-list">
+                            <% memberships.forEach((membership) => { const membersUrl = '/api/admin/organizations/' + membership.id + '/members/' + targetUser.id; %>
+                                <li class="operation">
+                                    <span class="org-switcher-mark" aria-hidden="true"><%= initials(membership.name) %></span>
+                                    <div class="operation-main">
+                                        <a class="cell-primary" href="/developer/admin/organizations/<%= membership.id %>"><%= membership.name %></a>
+                                    </div>
+                                    <div class="inline-select">
+                                        <label class="sr-only" for="membership-<%= membership.id %>">Role in <%= membership.name %></label>
+                                        <select class="select select-sm" id="membership-<%= membership.id %>" data-membership-role="<%= membersUrl %>" data-name="<%= membership.name %>">
+                                            <option value="member" <%= membership.role === 'member' ? 'selected' : '' %>>Member</option>
+                                            <option value="admin" <%= membership.role === 'admin' ? 'selected' : '' %>>Admin</option>
+                                        </select>
+                                    </div>
+                                    <button type="button" class="btn btn-danger-ghost btn-sm"
+                                        data-action="<%= membersUrl %>" data-method="DELETE"
+                                        data-confirm-title="Remove from <%= membership.name %>?"
+                                        data-confirm-message="<%= targetUser.name %> loses access to its catalogs. The account and its other organizations stay."
+                                        data-confirm-label="Remove" data-danger
+                                        data-success="Removed from <%= membership.name %>">Remove</button>
+                                </li>
+                            <% }); %>
+                        </ul>
+                    <% } else { %>
+                        <div class="card-body"><p class="muted">Not a member of any organization.</p></div>
+                    <% } %>
+                    <% const joinable = organizations.filter((organization) => !memberships.some((membership) => membership.id === organization.id)); %>
+                    <% if (joinable.length) { %>
+                        <form id="addMembershipForm" class="card-footer-form" data-email="<%= targetUser.email %>">
+                            <span class="label">Add to an organization</span>
+                            <div class="field-row">
+                                <div class="field">
+                                    <label class="sr-only" for="membershipOrganization">Organization</label>
+                                    <select class="select select-sm" id="membershipOrganization" name="organizationId" required>
+                                        <% joinable.forEach((organization) => { %><option value="<%= organization.id %>"><%= organization.name %></option><% }); %>
+                                    </select>
+                                </div>
+                                <div class="field field-narrow">
+                                    <label class="sr-only" for="membershipRole">Role</label>
+                                    <select class="select select-sm" id="membershipRole" name="orgRole">
+                                        <option value="member">Member</option>
+                                        <option value="admin">Admin</option>
+                                    </select>
+                                </div>
+                                <button type="submit" class="btn btn-secondary btn-sm"><%- include('partials/icon.html', { name: 'plus' }) %>Add</button>
+                            </div>
+                            <div id="membership-alert" class="alert alert-danger" role="alert" hidden>
+                                <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                            </div>
+                        </form>
+                    <% } %>
+                </section>
+
+                <section class="card">
+                    <div class="card-header">
+                        <div>
+                            <h2>Set a new password</h2>
+                            <p>The user's current password stops working immediately.</p>
+                        </div>
+                    </div>
+                    <form id="passwordForm" class="card-body form" data-user-id="<%= targetUser.id %>">
+                        <div class="field">
+                            <label for="newPassword">New password</label>
+                            <div class="input-group">
+                                <input class="input" type="password" id="newPassword" name="password" minlength="8" autocomplete="new-password" aria-describedby="new-password-hint" required>
+                                <button type="button" class="input-addon" data-toggle-password="newPassword" aria-label="Show password">
+                                    <%- include('partials/icon.html', { name: 'eye' }) %>
+                                </button>
+                            </div>
+                            <span id="new-password-hint" class="hint">At least 8 characters. Share it with the user securely.</span>
+                        </div>
+                        <div id="password-alert" class="alert alert-danger" role="alert" hidden>
+                            <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-secondary"><%- include('partials/icon.html', { name: 'key' }) %>Set password</button>
+                        </div>
+                    </form>
+                </section>
+
+                <% if (!isSelf) { %>
+                    <section class="card card-danger">
+                        <div class="card-header">
+                            <div>
+                                <h2>Danger zone</h2>
+                            </div>
+                        </div>
+                        <div class="card-body danger-row">
+                            <p>Deleting this user also deletes their <%= applications.length %> application<%= applications.length === 1 ? '' : 's' %> and tokens.</p>
+                            <button type="button" class="btn btn-danger btn-sm"
+                                data-delete-user="<%= targetUser.id %>"
+                                data-name="<%= targetUser.name %>"
+                                data-redirect="/developer/admin">
+                                <%- include('partials/icon.html', { name: 'trash' }) %>Delete user
+                            </button>
+                        </div>
+                    </section>
+                <% } %>
+            </div>
+        </div>
+    </main>
+
+    <script src="/js/ui.js"></script>
+    <script src="/js/admin.js"></script>
+    <script src="/js/applications.js"></script>
+    <script src="/js/admin-user.js"></script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+{
+  "name": "oauth-server-gateway",
+  "version": "1.0.0",
+  "private": true,
+  "description": "API gateway for OAuth Server: receives configuration from the management console over mTLS and proxies API traffic through JavaScript policies.",
+  "main": "src/gateway.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "jsonwebtoken": "^9.0.3",
+    "redis": "^4.7.1"
+  },
+  "devDependencies": {
+    "node-forge": "^1.4.0"
+  }
+}

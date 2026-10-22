@@ -1,0 +1,15 @@
+<aside class="card">
+    <div class="card-header">
+        <div>
+            <h2>Redirect URI rules</h2>
+            <p>Where users are sent after they sign in.</p>
+        </div>
+    </div>
+    <div class="card-body">
+        <ul class="tips">
+            <li><%- include('icon.html', { name: 'lock' }) %><span><strong>Use HTTPS.</strong> Plain http is only accepted for <code>localhost</code> during development.</span></li>
+            <li><%- include('icon.html', { name: 'link' }) %><span><strong>Exact match.</strong> The URI in an authorization request must match one of these exactly.</span></li>
+            <li><%- include('icon.html', { name: 'info' }) %><span><strong>No fragments.</strong> Don't include <code>#</code> in a redirect URI. You can add up to 10.</span></li>
+        </ul>
+    </div>
+</aside>

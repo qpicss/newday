@@ -1,0 +1,48 @@
+<%#
+  Property list of a dictionary object, driven by public/js/object-builder.js. Takes: prefix (id
+  prefix), fieldTypes, itemTypes.
+%>
+<div class="builder" data-builder>
+    <div class="table-wrap">
+        <table class="table builder-table">
+            <thead>
+                <tr>
+                    <th scope="col">Property</th>
+                    <th scope="col">Value</th>
+                    <th scope="col" class="builder-check-col">List</th>
+                    <th scope="col" class="builder-check-col">Required</th>
+                    <th scope="col"><span class="sr-only">Actions</span></th>
+                </tr>
+            </thead>
+            <tbody data-builder-rows></tbody>
+        </table>
+    </div>
+    <p class="builder-empty" data-builder-empty>No properties yet. Add fields or objects from your dictionary below.</p>
+
+    <div class="builder-add">
+        <div class="picker" data-picker>
+            <label for="<%= prefix %>Picker" class="label">Add a property</label>
+            <div class="search picker-search">
+                <%- include('icon.html', { name: 'search' }) %>
+                <input class="input" type="text" id="<%= prefix %>Picker" data-picker-input placeholder="Search fields and objects" autocomplete="off" spellcheck="false"
+                    role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="<%= prefix %>PickerList">
+            </div>
+            <ul class="picker-list" id="<%= prefix %>PickerList" role="listbox" data-picker-list hidden></ul>
+        </div>
+        <button type="button" class="btn btn-secondary" data-builder-new-field aria-expanded="false" aria-controls="<%= prefix %>FieldPanel">
+            <%- include('icon.html', { name: 'plus' }) %>New field
+        </button>
+    </div>
+
+    <div class="builder-field-panel" id="<%= prefix %>FieldPanel" data-builder-field-panel hidden>
+        <p class="builder-field-title">New field for the dictionary, added here as a property</p>
+        <%- include('field-form.html', { prefix: prefix + 'Field', compact: true, embedded: true, fieldTypes, itemTypes }) %>
+        <div class="alert alert-danger" role="alert" data-builder-field-alert hidden>
+            <%- include('icon.html', { name: 'alert' }) %><span data-alert-text></span>
+        </div>
+        <div class="form-actions">
+            <button type="button" class="btn btn-ghost btn-sm" data-builder-field-cancel>Cancel</button>
+            <button type="button" class="btn btn-primary btn-sm" data-builder-field-add>Add field</button>
+        </div>
+    </div>
+</div>

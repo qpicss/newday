@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <%- include('partials/head.html', { title: application.name }) %>
+</head>
+<body>
+    <%- include('partials/app-nav.html', { active: adminView ? 'admin' : 'applications' }) %>
+    <%
+    const apiUrl = (adminView ? '/api/admin/applications/' : '/api/applications/') + encodeURIComponent(application.id);
+    const afterDeleteUrl = adminView && owner ? '/developer/admin/users/' + owner.id : (adminView ? '/developer/admin/applications' : '/developer/applications');
+    %>
+
+    <main id="main" class="page">
+        <nav class="breadcrumb" aria-label="Breadcrumb">
+            <% if (adminView) { %>
+                <a href="/developer/admin">Admin</a>
+                <%- include('partials/icon.html', { name: 'chevron-right' }) %>
+                <% if (owner) { %>
+                    <a href="/developer/admin/users/<%= owner.id %>"><%= owner.name %></a>
+                <% } else { %>
+                    <a href="/developer/admin/applications">Applications</a>
+                <% } %>
+            <% } else { %>
+                <a href="/developer/applications">Applications</a>
+            <% } %>
+            <%- include('partials/icon.html', { name: 'chevron-right' }) %>
+            <span aria-current="page" data-app-name><%= application.name %></span>
+        </nav>
+        <div class="page-header">
+            <div class="user-cell">
+                <span class="app-avatar"><%= initials(application.name) %></span>
+                <div>
+                    <h1 data-app-name><%= application.name %></h1>
+                    <p class="page-subtitle">Created <%= formatDate(application.createdAt) %> · Last updated <%= formatDate(application.updatedAt) %></p>
+                </div>
+            </div>
+        </div>
+
+        <% if (redirectUriError) { %>
+            <div class="alert alert-warning page-alert" role="status">
+                <%- include('partials/icon.html', { name: 'alert' }) %>
+                <div><strong>Some redirect URIs need attention.</strong><%= redirectUriError %>. Update them below so you can save this application.</div>
+            </div>
+        <% } %>
+
+        <% if (typeof usage !== 'undefined') { %><%- include('partials/usage-card.html', { usage, usageDescription: 'Calls this application made through gateways' }) %><% } %>
+
+        <div class="grid-2">
+            <section class="card">
+                <div class="card-header">
+                    <div>
+                        <h2>Settings</h2>
+                        <p>Changes take effect as soon as you save.</p>
+                    </div>
+                </div>
+                <form id="applicationForm" class="card-body form" data-api-url="<%= apiUrl %>" data-after-delete="<%= afterDeleteUrl %>">
+                    <div class="field">
+                        <label for="name">Application name</label>
+                        <input class="input" type="text" id="name" name="name" value="<%= application.name %>" maxlength="255" required>
+                    </div>
+                    <div class="field">
+                        <label for="description">Description <span class="label-optional">(optional)</span></label>
+                        <textarea class="textarea" id="description" name="description" rows="3" maxlength="2000"><%= application.description || '' %></textarea>
+                    </div>
+                    <div class="field">
+                        <label for="redirectUris">Redirect URIs</label>
+                        <textarea class="textarea mono" id="redirectUris" name="redirectUris" rows="4" required aria-describedby="redirect-hint"><%= application.redirectUris.join('\n') %></textarea>
+                        <span id="redirect-hint" class="hint">One per line. HTTPS only, except for localhost.</span>
+                    </div>
+                    <div class="field">
+                        <label for="publicKey">Public key <span class="label-optional">(optional)</span></label>
+                        <textarea class="textarea mono" id="publicKey" name="publicKey" rows="4"><%= application.publicKey || '' %></textarea>
+                    </div>
+
+                    <div id="form-alert" class="alert alert-danger" role="alert" hidden>
+                        <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">Save changes</button>
+                    </div>
+                </form>
+            </section>
+
+            <div class="stack">
+                <% if (adminView) { %>
+                    <section class="card">
+                        <div class="card-header">
+                            <div>
+                                <h2>Owner</h2>
+                                <p>You're managing this application as an admin.</p>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <% if (owner) { %>
+                                <div class="user-cell">
+                                    <span class="avatar"><%= initials(owner.name) %></span>
+                                    <div>
+                                        <div class="cell-primary"><%= owner.name %></div>
+                                        <div class="cell-secondary"><%= owner.email %></div>
+                                    </div>
+                                    <a href="/developer/admin/users/<%= owner.id %>" class="btn btn-secondary btn-sm owner-link">Manage user</a>
+                                </div>
+                            <% } else { %>
+                                <p class="muted">The owner account no longer exists.</p>
+                            <% } %>
+                        </div>
+                    </section>
+                <% } %>
+                <section class="card" id="api-access">
+                    <div class="card-header">
+                        <div>
+                            <h2>API access</h2>
+                            <p>Products this application can use or has asked for.</p>
+                        </div>
+                        <% if (!adminView) { %><a href="/developer/catalogs" class="btn btn-ghost btn-sm">Browse catalogs <%- include('partials/icon.html', { name: 'arrow-right' }) %></a><% } %>
+                    </div>
+                    <% if (subscriptions.length) { %>
+                        <ul class="operation-list">
+                            <% subscriptions.forEach((subscription) => { const status = subscriptionStatus(subscription.status); %>
+                                <li class="operation">
+                                    <div class="operation-main">
+                                        <% if (subscription.product.status === 'published') { %>
+                                            <a class="cell-primary" href="/developer/catalog/<%= subscription.product.id %>"><%= subscription.product.name %></a>
+                                        <% } else { %>
+                                            <span class="cell-primary"><%= subscription.product.name %></span>
+                                        <% } %>
+                                        <span class="operation-summary"><%= subscription.product.organization ? subscription.product.organization.name : '' %></span>
+                                    </div>
+                                    <span class="badge badge-dot <%= status.className %>"><%= status.label %></span>
+                                    <% if (!adminView) { %>
+                                        <button type="button" class="btn btn-ghost btn-sm btn-icon"
+                                            data-action="/api/applications/<%= application.id %>/subscriptions/<%= subscription.id %>" data-method="DELETE"
+                                            data-confirm-title="<%= subscription.status === 'approved' ? 'Give up access?' : 'Withdraw request?' %>"
+                                            data-confirm-message="<%= application.name %> <%= subscription.status === 'approved' ? 'will lose access to' : 'will no longer request' %> <%= subscription.product.name %>."
+                                            data-confirm-label="<%= subscription.status === 'approved' ? 'Give up access' : 'Withdraw' %>" data-danger
+                                            data-success="Subscription cancelled"
+                                            aria-label="Cancel subscription to <%= subscription.product.name %>" title="Cancel">
+                                            <%- include('partials/icon.html', { name: 'x' }) %>
+                                        </button>
+                                    <% } %>
+                                </li>
+                            <% }); %>
+                        </ul>
+                    <% } else { %>
+                        <div class="card-body"><p class="muted">No API products yet.<% if (!adminView) { %> Find one in your organization's <a href="/developer/catalogs">catalogs</a> and request access.<% } %></p></div>
+                    <% } %>
+                </section>
+
+                <section class="card" id="credentials">
+                    <div class="card-header">
+                        <div>
+                            <h2>Credentials</h2>
+                            <p>Every set gets tokens for this application, with the same API access. Give each client or environment its own, so you can delete one without stopping the others.</p>
+                        </div>
+                        <% if (credentials.length < maxCredentials) { %>
+                            <button type="button" class="btn btn-secondary btn-sm" id="addCredential" aria-controls="credentialForm" aria-expanded="false"><%- include('partials/icon.html', { name: 'plus' }) %>Add credentials</button>
+                        <% } %>
+                    </div>
+                    <div class="card-body">
+                        <form id="credentialForm" class="credential-form form" data-url="<%= apiUrl %>/credentials" hidden novalidate>
+                            <div class="field">
+                                <label for="credentialName">Name</label>
+                                <input class="input" type="text" id="credentialName" name="name" maxlength="100" required placeholder="Production server" aria-describedby="credential-name-hint">
+                                <span id="credential-name-hint" class="hint">Where these credentials will be used, so you can recognize them later.</span>
+                            </div>
+                            <div id="credential-alert" class="alert alert-danger" role="alert" hidden>
+                                <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                            </div>
+                            <div class="form-actions">
+                                <button type="button" class="btn btn-ghost btn-sm" id="cancelCredential">Cancel</button>
+                                <button type="submit" class="btn btn-primary btn-sm">Create credentials</button>
+                            </div>
+                        </form>
+
+                        <div id="newCredential" class="credential-set is-new" hidden aria-live="polite">
+                            <div class="credential-set-head">
+                                <div class="credential-set-title"><span class="cell-primary"><span data-new-name></span> <span class="badge badge-success">New</span></span></div>
+                            </div>
+                            <div class="credential">
+                                <span class="label">Client ID</span>
+                                <div class="credential-value">
+                                    <code id="new-client-id"></code>
+                                    <button type="button" class="copy-btn" data-copy-target="#new-client-id" aria-label="Copy the new client ID"><%- include('partials/icon.html', { name: 'copy' }) %></button>
+                                </div>
+                            </div>
+                            <div class="credential">
+                                <span class="label">Client secret</span>
+                                <div class="credential-value is-secret">
+                                    <code id="new-client-secret"></code>
+                                    <button type="button" class="copy-btn" data-copy-target="#new-client-secret" aria-label="Copy the new client secret"><%- include('partials/icon.html', { name: 'copy' }) %></button>
+                                </div>
+                            </div>
+                            <div class="alert alert-warning">
+                                <%- include('partials/icon.html', { name: 'alert' }) %>
+                                <div><strong>Copy the client secret now.</strong>It's stored hashed and won't be shown again.</div>
+                            </div>
+                            <div class="form-actions">
+                                <button type="button" class="btn btn-primary btn-sm" id="doneCredential">I've copied it</button>
+                            </div>
+                        </div>
+
+                        <div class="credential-list">
+                        <div class="credential-set">
+                            <div class="credential-set-head">
+                                <div class="credential-set-title">
+                                    <span class="cell-primary">Original</span>
+                                    <span class="cell-secondary">Created with the application, <%= formatDate(application.createdAt) %></span>
+                                </div>
+                            </div>
+                            <div class="credential">
+                                <span class="label">Client ID</span>
+                                <div class="credential-value">
+                                    <code id="client-id"><%= application.clientId %></code>
+                                    <button type="button" class="copy-btn" data-copy-target="#client-id" aria-label="Copy client ID"><%- include('partials/icon.html', { name: 'copy' }) %></button>
+                                </div>
+                            </div>
+                            <div class="credential">
+                                <span class="label">Client secret</span>
+                                <div class="credential-value is-hidden">
+                                    <%- include('partials/icon.html', { name: 'lock', className: 'icon-sm' }) %>
+                                    <span>Hidden. It was only shown when the application was created.</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <% credentials.forEach((credential) => { %>
+                            <div class="credential-set">
+                                <div class="credential-set-head">
+                                    <div class="credential-set-title">
+                                        <span class="cell-primary"><%= credential.name %></span>
+                                        <span class="cell-secondary">Created <%= formatDate(credential.createdAt) %> · <%= credential.lastUsedAt ? 'Last used ' + formatDate(credential.lastUsedAt) : 'Not used yet' %></span>
+                                    </div>
+                                    <button type="button" class="btn btn-ghost btn-sm btn-icon credential-delete"
+                                        data-action="<%= apiUrl %>/credentials/<%= credential.id %>" data-method="DELETE"
+                                        data-confirm-title="Delete <%= credential.name %>?"
+                                        data-confirm-message="Clients using these credentials can't get new tokens. Tokens they already have stop working within 10 minutes. The other credentials keep working."
+                                        data-confirm-label="Delete credentials" data-danger
+                                        data-success="<%= credential.name %> was deleted"
+                                        aria-label="Delete <%= credential.name %>" title="Delete">
+                                        <%- include('partials/icon.html', { name: 'trash' }) %>
+                                    </button>
+                                </div>
+                                <div class="credential">
+                                    <span class="label">Client ID</span>
+                                    <div class="credential-value">
+                                        <code id="client-id-<%= credential.id %>"><%= credential.clientId %></code>
+                                        <button type="button" class="copy-btn" data-copy-target="#client-id-<%= credential.id %>" aria-label="Copy the client ID of <%= credential.name %>"><%- include('partials/icon.html', { name: 'copy' }) %></button>
+                                    </div>
+                                </div>
+                            </div>
+                        <% }); %>
+                        </div>
+                        <% if (credentials.length >= maxCredentials) { %>
+                            <p class="hint">This application has the most extra credentials it can have (<%= maxCredentials %>). Delete one to add another.</p>
+                        <% } %>
+                    </div>
+                </section>
+
+                <section class="card card-danger">
+                    <div class="card-header">
+                        <div>
+                            <h2>Danger zone</h2>
+                        </div>
+                    </div>
+                    <div class="card-body danger-row">
+                        <p>Deleting this application revokes its tokens. Clients using it will stop working immediately.</p>
+                        <button type="button" id="deleteApplication" class="btn btn-danger btn-sm" data-name="<%= application.name %>">
+                            <%- include('partials/icon.html', { name: 'trash' }) %>Delete
+                        </button>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </main>
+
+    <script src="/js/ui.js"></script>
+    <script src="/js/charts.js"></script>
+    <script src="/js/usage.js"></script>
+    <script src="/js/application-detail.js"></script>
+</body>
+</html>

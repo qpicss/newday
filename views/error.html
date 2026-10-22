@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <%- include('partials/head.html', { title: heading }) %>
+</head>
+<body>
+    <% if (locals.user) { %>
+        <%- include('partials/app-nav.html') %>
+    <% } else { %>
+        <header class="site-header">
+            <a class="brand" href="/">
+                <span class="brand-mark"><%- include('partials/icon.html', { name: 'logo' }) %></span>
+                OAuth Server
+            </a>
+        </header>
+    <% } %>
+
+    <main id="main" class="error-page">
+        <div>
+            <div class="error-code"><%= status %></div>
+            <h1><%= heading %></h1>
+            <p><%= message %></p>
+            <% if (locals.user) { %>
+                <a href="/developer/dashboard" class="btn btn-primary">Back to dashboard</a>
+            <% } else { %>
+                <a href="/" class="btn btn-primary">Go to home page</a>
+            <% } %>
+        </div>
+    </main>
+
+    <% if (locals.user) { %><script src="/js/ui.js"></script><% } %>
+</body>
+</html>

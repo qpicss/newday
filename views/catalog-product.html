@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <%- include('partials/head.html', { title: product.name }) %>
+</head>
+<body>
+    <%- include('partials/app-nav.html', { active: 'catalogs' }) %>
+    <%
+    const subscribedIds = subscriptions
+        .filter((subscription) => ['pending', 'approved'].includes(subscription.status))
+        .map((subscription) => subscription.application.id);
+    const requestable = applications.filter((application) => !subscribedIds.includes(application.id));
+    const operationCount = product.apis.reduce((count, api) => count + api.operations.length, 0);
+    %>
+
+    <main id="main" class="page">
+        <nav class="breadcrumb" aria-label="Breadcrumb">
+            <a href="/developer/catalogs">Catalogs</a>
+            <% if (product.catalog) { %><%- include('partials/icon.html', { name: 'chevron-right' }) %>
+            <a href="/developer/catalogs/<%= product.catalog.id %>"><%= product.catalog.name %></a><% } %>
+            <%- include('partials/icon.html', { name: 'chevron-right' }) %>
+            <span aria-current="page"><%= product.name %></span>
+        </nav>
+        <div class="page-header">
+            <div class="user-cell">
+                <span class="app-avatar app-avatar-lg"><%- include('partials/icon.html', { name: 'package', className: 'icon-lg' }) %></span>
+                <div>
+                    <p class="page-eyebrow">by <%= product.organization ? product.organization.name : 'Unknown organization' %></p>
+                    <h1><%= product.name %></h1>
+                    <div class="badges">
+                        <span class="badge"><%= product.apis.length %> API<%= product.apis.length === 1 ? '' : 's' %> · <%= operationCount %> endpoint<%= operationCount === 1 ? '' : 's' %></span>
+                        <span class="badge"><%= formatRateLimit(product) %></span>
+                        <span class="badge <%= product.billing.plan === 'free' ? 'badge-success' : 'badge-primary' %>"><%= formatBilling(product) %></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <div class="stack">
+                <% if (product.description) { %>
+                    <section class="card">
+                        <div class="card-body prose"><%= product.description %></div>
+                    </section>
+                <% } %>
+
+                <% product.apis.forEach((api) => { %>
+                    <section class="card">
+                        <div class="card-header">
+                            <div>
+                                <h2><%= api.name %> <span class="badge">v<%= api.version %></span></h2>
+                                <% if (api.description) { %><p><%= api.description %></p><% } %>
+                            </div>
+                        </div>
+                        <% if (api.baseUrl) { %>
+                            <div class="card-subheader">
+                                <span class="label">Base URL</span>
+                                <span class="code-pill"><code><%= api.baseUrl %></code><button type="button" class="copy-btn" data-copy="<%= api.baseUrl %>" aria-label="Copy base URL"><%- include('partials/icon.html', { name: 'copy' }) %></button></span>
+                            </div>
+                        <% } %>
+                        <% if (api.operations.length) { %>
+                            <ul class="operation-list">
+                                <% api.operations.forEach((operation) => { %>
+                                    <li class="operation">
+                                        <span class="method method-<%= operation.method %>"><%= operation.method %></span>
+                                        <div class="operation-main">
+                                            <code class="operation-path"><%= operation.path %></code>
+                                            <% if (operation.summary) { %><span class="operation-summary"><%= operation.summary %></span><% } %>
+                                        </div>
+                                        <% if (operation.deprecated) { %><span class="badge badge-warning">Deprecated</span><% } %>
+                                    </li>
+                                <% }); %>
+                            </ul>
+                        <% } else { %>
+                            <div class="card-body"><p class="muted">This API doesn't list any endpoints.</p></div>
+                        <% } %>
+                    </section>
+                <% }); %>
+            </div>
+
+            <div class="stack">
+                <section class="card card-attention">
+                    <div class="card-header">
+                        <div>
+                            <h2>Request access</h2>
+                            <p>An admin of <%= product.organization ? product.organization.name : 'the publisher' %> reviews every request.</p>
+                        </div>
+                    </div>
+                    <% if (!applications.length) { %>
+                        <div class="card-body">
+                            <p class="muted">You need an application before you can request access.</p>
+                            <div class="form-actions">
+                                <a href="/developer/applications/create" class="btn btn-primary"><%- include('partials/icon.html', { name: 'plus' }) %>Create application</a>
+                            </div>
+                        </div>
+                    <% } else if (!requestable.length) { %>
+                        <div class="card-body"><p class="muted">All of your applications already have access or are waiting for approval.</p></div>
+                    <% } else { %>
+                        <form id="requestForm" class="card-body form" data-product-id="<%= product.id %>">
+                            <div class="field">
+                                <label for="applicationId">Application</label>
+                                <select class="select" id="applicationId" name="applicationId" required>
+                                    <% requestable.forEach((application) => { %><option value="<%= application.id %>"><%= application.name %></option><% }); %>
+                                </select>
+                            </div>
+                            <div id="form-alert" class="alert alert-danger" role="alert" hidden>
+                                <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                            </div>
+                            <div class="form-actions">
+                                <button type="submit" class="btn btn-primary">Request access</button>
+                            </div>
+                        </form>
+                    <% } %>
+
+                    <% if (subscriptions.length) { %>
+                        <div class="card-section">
+                            <span class="label">Your applications</span>
+                            <ul class="link-list">
+                                <% subscriptions.forEach((subscription) => { const status = subscriptionStatus(subscription.status); %>
+                                    <li>
+                                        <a href="/developer/applications/<%= subscription.application.id %>"><%= subscription.application.name %></a>
+                                        <span class="badge badge-dot <%= status.className %>"><%= status.label %></span>
+                                    </li>
+                                <% }); %>
+                            </ul>
+                        </div>
+                    <% } %>
+                </section>
+
+                <section class="card">
+                    <div class="card-header">
+                        <div>
+                            <h2>Call it</h2>
+                            <p><%= deployments.length ? 'Gateways serving this product.' : 'Not deployed to a gateway yet.' %></p>
+                        </div>
+                    </div>
+                    <div class="card-body call-it">
+                        <% if (deployments.length) { %>
+                            <ul class="link-list">
+                                <% deployments.forEach((deployment) => { %>
+                                    <li><span class="cell-primary"><%= deployment.name %></span><code class="mono-sm"><%= deployment.publicUrl %></code></li>
+                                <% }); %>
+                            </ul>
+                            <ul class="uri-list">
+                                <% product.apis.forEach((api) => { %><li><%= deployments[0].publicUrl %><%= api.basePath %>/…</li><% }); %>
+                            </ul>
+                        <% } %>
+                        <span class="label">1. Get an access token (valid 10 minutes)</span>
+                        <div class="code-snippet">
+                            <pre><code id="token-command">curl -u "$CLIENT_ID:$CLIENT_SECRET" \
+  -d grant_type=client_credentials \
+  <%= tokenUrl %></code></pre>
+                            <button type="button" class="copy-btn" data-copy-target="#token-command" aria-label="Copy token command"><%- include('partials/icon.html', { name: 'copy' }) %></button>
+                        </div>
+                        <% if (deployments.length && product.apis.length && product.apis[0].operations.length) { const api = product.apis[0]; const operation = api.operations[0]; %>
+                            <span class="label">2. Call the API</span>
+                            <div class="code-snippet">
+                                <pre><code id="call-command">curl -X <%= operation.method.toUpperCase() %> \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  <%= deployments[0].publicUrl %><%= api.basePath %><%= operation.path %></code></pre>
+                                <button type="button" class="copy-btn" data-copy-target="#call-command" aria-label="Copy API call"><%- include('partials/icon.html', { name: 'copy' }) %></button>
+                            </div>
+                        <% } %>
+                    </div>
+                </section>
+
+                <section class="card">
+                    <div class="card-header">
+                        <div><h2>Plan</h2></div>
+                    </div>
+                    <div class="card-body">
+                        <dl class="detail-list detail-list-compact">
+                            <div><dt>Price</dt><dd><%= formatBilling(product) %></dd></div>
+                            <div><dt>Rate limit</dt><dd><%= formatRateLimit(product) %><% if (product.rateLimit.enabled) { %> per application<% } %></dd></div>
+                            <div><dt>Publisher</dt><dd><%= product.organization ? product.organization.name : 'Unknown' %></dd></div>
+                            <div><dt>Updated</dt><dd><%= formatDate(product.updatedAt) %></dd></div>
+                        </dl>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </main>
+
+    <script src="/js/ui.js"></script>
+    <script src="/js/catalog-product.js"></script>
+</body>
+</html>

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <%- include('partials/head.html', { title: 'Create account' }) %>
+</head>
+<body>
+    <div class="auth-layout">
+        <%- include('partials/auth-aside.html') %>
+
+        <main id="main" class="auth-main">
+            <div class="auth-card">
+                <a class="brand auth-mobile-brand" href="/">
+                    <span class="brand-mark"><%- include('partials/icon.html', { name: 'logo' }) %></span>
+                    OAuth Server
+                </a>
+                <h1>Create your account</h1>
+                <p class="muted">Start registering OAuth applications in a few minutes.</p>
+
+                <div id="form-alert" class="alert alert-danger" role="alert" hidden>
+                    <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                </div>
+
+                <form id="registerForm" class="form">
+                    <div class="field">
+                        <label for="name">Full name</label>
+                        <input class="input" type="text" id="name" name="name" autocomplete="name" maxlength="100" placeholder="Ada Lovelace" required autofocus>
+                    </div>
+                    <div class="field">
+                        <label for="organizationName">Organization name</label>
+                        <input class="input" type="text" id="organizationName" name="organizationName" autocomplete="organization" minlength="2" maxlength="100" placeholder="Acme Inc." aria-describedby="organization-hint" required>
+                        <span id="organization-hint" class="hint">You'll be the admin of this organization and can invite your team.</span>
+                    </div>
+                    <div class="field">
+                        <label for="email">Work email</label>
+                        <input class="input" type="email" id="email" name="email" autocomplete="email" placeholder="you@company.com" required>
+                    </div>
+                    <div class="field">
+                        <label for="password">Password</label>
+                        <div class="input-group">
+                            <input class="input" type="password" id="password" name="password" autocomplete="new-password" minlength="8" aria-describedby="password-hint" required>
+                            <button type="button" class="input-addon" data-toggle-password="password" aria-label="Show password">
+                                <%- include('partials/icon.html', { name: 'eye' }) %>
+                            </button>
+                        </div>
+                        <span id="password-hint" class="hint">Use at least 8 characters.</span>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-block">Create account</button>
+                </form>
+
+                <p class="auth-switch">Already have an account? <a href="/login">Sign in</a></p>
+            </div>
+        </main>
+    </div>
+
+    <script src="/js/ui.js"></script>
+    <script src="/js/register.js"></script>
+</body>
+</html>

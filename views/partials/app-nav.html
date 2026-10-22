@@ -1,0 +1,109 @@
+<%
+// Navigation follows the role in the selected organization:
+//   org admins: catalogs (with their products and APIs), the data dictionary for API schemas, gateways (with policies and connections), members;
+//   members: the organization's catalogs to browse and their own applications;
+//   everyone gets Docs (the documentation, with a guide for their role);
+//   platform admins also get Admin (users, organizations) and can open any organization.
+const currentOrg = user && user.organizationId && user.organization ? user.organization : null;
+const isOrgAdmin = Boolean(currentOrg) && user.orgRole === 'admin';
+const myOrganizations = (user && user.memberships) || [];
+const navItems = [
+    { key: 'dashboard', href: '/developer/dashboard', label: 'Dashboard', icon: 'home' },
+];
+if (currentOrg) {
+    navItems.push({ key: 'catalogs', href: '/developer/catalogs', label: 'Catalogs', icon: 'book' });
+}
+if (isOrgAdmin) {
+    navItems.push({ key: 'dictionary', href: '/developer/dictionary', label: 'Dictionary', icon: 'database' });
+}
+navItems.push({ key: 'applications', href: '/developer/applications', label: 'Applications', icon: 'grid' });
+if (isOrgAdmin) {
+    navItems.push({ key: 'gateways', href: '/developer/gateways', label: 'Gateways', icon: 'server' });
+}
+if (currentOrg) {
+    navItems.push({ key: 'organization', href: '/developer/organization', label: isOrgAdmin ? 'Members' : 'Organization', icon: 'users' });
+}
+navItems.push({ key: 'docs', href: '/developer/docs', label: 'Docs', icon: 'docs' });
+if (user && user.role === 'admin') {
+    navItems.push({ key: 'admin', href: '/developer/admin', label: 'Admin', icon: 'shield' });
+}
+const activeKey = typeof active !== 'undefined' ? active : '';
+const roleLabel = (role) => (role === 'admin' ? 'Admin' : 'Member');
+%>
+<a class="sr-only" href="#main">Skip to content</a>
+<header class="app-header" data-app-header>
+    <div class="app-header-inner">
+        <a class="brand" href="/developer/dashboard">
+            <span class="brand-mark"><%- include('icon.html', { name: 'logo' }) %></span>
+            <span class="brand-text">OAuth Server</span>
+        </a>
+
+        <details class="org-switcher" data-org-switcher>
+            <summary class="org-switcher-button" aria-label="Organization: <%= currentOrg ? currentOrg.name : 'none selected' %>. Switch organization">
+                <span class="org-switcher-mark" aria-hidden="true"><%= currentOrg ? initials(currentOrg.name) : '?' %></span>
+                <span class="org-switcher-text">
+                    <strong><%= currentOrg ? currentOrg.name : 'No organization' %></strong>
+                    <small><%= currentOrg ? (user.actingAsPlatformAdmin ? 'Platform admin' : roleLabel(user.orgRole)) : 'Choose or create one' %></small>
+                </span>
+                <%- include('icon.html', { name: 'chevron-down', className: 'icon-sm' }) %>
+            </summary>
+            <div class="org-switcher-menu" role="menu">
+                <p class="org-switcher-label">Your organizations</p>
+                <% if (myOrganizations.length) { %>
+                    <% myOrganizations.forEach((membership) => { const selected = currentOrg && membership.organizationId === currentOrg.id; %>
+                        <button type="button" class="org-switcher-item" role="menuitemradio" aria-checked="<%= selected ? 'true' : 'false' %>"
+                            data-switch-org="<%= membership.organizationId %>" data-org-name="<%= membership.name %>">
+                            <span class="org-switcher-mark" aria-hidden="true"><%= initials(membership.name) %></span>
+                            <span class="org-switcher-text"><strong><%= membership.name %></strong><small><%= roleLabel(membership.role) %></small></span>
+                            <% if (selected) { %><%- include('icon.html', { name: 'check', className: 'icon-sm' }) %><% } %>
+                        </button>
+                    <% }); %>
+                <% } else { %>
+                    <p class="org-switcher-empty">You're not in an organization yet. Accept an invitation, or create one.</p>
+                <% } %>
+                <% if (user.actingAsPlatformAdmin && currentOrg) { %>
+                    <p class="org-switcher-note">You're managing <strong><%= currentOrg.name %></strong> as platform admin.</p>
+                <% } %>
+                <div class="org-switcher-actions">
+                    <a class="org-switcher-link" href="/developer/organization#organizations"><%- include('icon.html', { name: 'plus', className: 'icon-sm' }) %>Create or leave organizations</a>
+                    <% if (user.role === 'admin') { %>
+                        <a class="org-switcher-link" href="/developer/admin/organizations"><%- include('icon.html', { name: 'building', className: 'icon-sm' }) %>All organizations</a>
+                    <% } %>
+                </div>
+            </div>
+        </details>
+
+        <nav id="app-nav" class="app-nav" aria-label="Main navigation">
+            <% navItems.forEach((item) => { %>
+                <a href="<%= item.href %>" class="app-nav-link"<% if (activeKey === item.key) { %> aria-current="page"<% } %>>
+                    <%- include('icon.html', { name: item.icon }) %><%= item.label %>
+                </a>
+            <% }); %>
+        </nav>
+        <div class="user-menu">
+            <div class="user-meta">
+                <strong><%= user.name %></strong>
+                <small><%= user.email %></small>
+            </div>
+            <button type="button" class="btn btn-ghost btn-sm btn-icon tour-button" data-tour-start aria-label="Tour this page" title="Tour this page">
+                <%- include('icon.html', { name: 'help' }) %>
+            </button>
+            <a href="/developer/profile" class="avatar" title="My profile"><%= initials(user.name) %></a>
+            <form method="POST" action="/auth/logout" class="nav-logout">
+                <button type="submit" class="btn btn-ghost btn-sm btn-icon" title="Log out" aria-label="Log out">
+                    <%- include('icon.html', { name: 'logout' }) %>
+                </button>
+            </form>
+            <button type="button" class="nav-toggle" data-nav-toggle aria-expanded="false" aria-controls="app-nav" aria-label="Open menu">
+                <%- include('icon.html', { name: 'menu' }) %>
+            </button>
+        </div>
+    </div>
+</header>
+<% if (user.actingAsPlatformAdmin && currentOrg) { %>
+    <div class="platform-banner" role="status">
+        <%- include('icon.html', { name: 'shield', className: 'icon-sm' }) %>
+        <span>Managing <strong><%= currentOrg.name %></strong> as platform admin. Changes apply to this organization.</span>
+        <a href="/developer/admin/organizations/<%= currentOrg.id %>">Back to organization overview</a>
+    </div>
+<% } %>

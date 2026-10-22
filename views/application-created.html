@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <%- include('partials/head.html', { title: 'Application created' }) %>
+</head>
+<body>
+    <%- include('partials/app-nav.html', { active: 'applications' }) %>
+
+    <main id="main" class="page page-narrow">
+        <nav class="breadcrumb" aria-label="Breadcrumb">
+            <a href="/developer/applications">Applications</a>
+            <%- include('partials/icon.html', { name: 'chevron-right' }) %>
+            <span aria-current="page"><%= application.name %></span>
+        </nav>
+
+        <section class="card success-card">
+            <div class="card-body">
+                <div class="success-icon"><%- include('partials/icon.html', { name: 'check', className: 'icon-lg' }) %></div>
+                <h2><%= application.name %> is ready</h2>
+                <p><%= application.description || 'Your OAuth client was created successfully.' %></p>
+
+                <div class="credential">
+                    <span class="label">Client ID</span>
+                    <div class="credential-value">
+                        <code id="client-id"><%= application.clientId %></code>
+                        <button type="button" class="copy-btn" data-copy-target="#client-id" aria-label="Copy client ID"><%- include('partials/icon.html', { name: 'copy' }) %></button>
+                    </div>
+                </div>
+                <div class="credential">
+                    <span class="label">Client secret</span>
+                    <div class="credential-value is-secret">
+                        <code id="client-secret"><%= application.clientSecret %></code>
+                        <button type="button" class="copy-btn" data-copy-target="#client-secret" aria-label="Copy client secret"><%- include('partials/icon.html', { name: 'copy' }) %></button>
+                    </div>
+                </div>
+                <div class="credential">
+                    <span class="label">Redirect URIs</span>
+                    <ul class="uri-list">
+                        <% application.redirectUris.forEach((uri) => { %><li><%= uri %></li><% }); %>
+                    </ul>
+                </div>
+
+                <div class="alert alert-warning">
+                    <%- include('partials/icon.html', { name: 'alert' }) %>
+                    <div><strong>Copy your client secret now.</strong>For your security it's stored hashed and won't be shown again.</div>
+                </div>
+
+                <div class="form-actions">
+                    <a href="/developer/applications/create" class="btn btn-secondary">Create another</a>
+                    <a href="/developer/applications/<%= application.id %>" class="btn btn-primary">View application <%- include('partials/icon.html', { name: 'arrow-right' }) %></a>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script src="/js/ui.js"></script>
+</body>
+</html>

@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <%- include('partials/head.html', { title: field.name }) %>
+</head>
+<body>
+    <%- include('partials/app-nav.html', { active: 'dictionary' }) %>
+
+    <main id="main" class="page">
+        <nav class="breadcrumb" aria-label="Breadcrumb">
+            <a href="/developer/dictionary">Data dictionary</a>
+            <%- include('partials/icon.html', { name: 'chevron-right' }) %>
+            <a href="/developer/dictionary">Fields</a>
+            <%- include('partials/icon.html', { name: 'chevron-right' }) %>
+            <span aria-current="page"><%= field.name %></span>
+        </nav>
+        <div class="page-header">
+            <div class="user-cell">
+                <span class="app-avatar app-avatar-lg"><%- include('partials/icon.html', { name: 'braces', className: 'icon-lg' }) %></span>
+                <div>
+                    <h1 class="mono-name"><%= field.name %></h1>
+                    <div class="badges">
+                        <span class="badge schema-badge"><%= field.summary %></span>
+                        <% if (field.source === 'import') { %>
+                            <span class="badge badge-primary">Imported<%= sourceApi ? ' from ' + sourceApi.name : '' %></span>
+                        <% } else { %>
+                            <span class="badge">Added in console</span>
+                        <% } %>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <section class="card">
+                <div class="card-header">
+                    <div>
+                        <h2>Field</h2>
+                        <p>Changes apply to the objects using this field. APIs keep their copy until you update them on their Design tab.</p>
+                    </div>
+                </div>
+                <form id="fieldForm" class="card-body form" data-field-id="<%= field.id %>">
+                    <%- include('partials/field-form.html', { prefix: 'edit', field, fieldTypes, itemTypes }) %>
+                    <div id="form-alert" class="alert alert-danger" role="alert" hidden>
+                        <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">Save field</button>
+                    </div>
+                </form>
+            </section>
+
+            <aside class="stack">
+                <section class="card">
+                    <div class="card-header">
+                        <div>
+                            <h2>In an OpenAPI document</h2>
+                            <p>The schema this field becomes (OpenAPI 3.0). 3.1 documents get the 3.1 form.</p>
+                        </div>
+                    </div>
+                    <pre class="schema-preview" id="fieldPreview"><%= JSON.stringify(field.preview, null, 2) %></pre>
+                </section>
+
+                <section class="card">
+                    <div class="card-header">
+                        <div><h2>Used in</h2></div>
+                    </div>
+                    <div class="card-body stack-sm">
+                        <% if (field.usedBy.length) { %>
+                            <div>
+                                <span class="label">Objects</span>
+                                <ul class="link-list">
+                                    <% field.usedBy.forEach((object) => { %><li><a class="mono-name" href="/developer/dictionary/objects/<%= object.id %>"><%= object.name %></a></li><% }); %>
+                                </ul>
+                            </div>
+                        <% } %>
+                        <% if (field.apis.length) { %>
+                            <div>
+                                <span class="label">APIs (as a parameter or body)</span>
+                                <ul class="link-list">
+                                    <% field.apis.forEach((api) => { %><li><a href="/developer/apis/<%= api.id %>/design"><%= api.name %></a></li><% }); %>
+                                </ul>
+                            </div>
+                        <% } %>
+                        <% if (!field.usedBy.length && !field.apis.length) { %>
+                            <p class="muted">Not used yet. Add it to an object, or use it as a parameter on an API's Design tab.</p>
+                        <% } %>
+                    </div>
+                </section>
+
+                <section class="card card-danger">
+                    <div class="card-header">
+                        <div><h2>Danger zone</h2></div>
+                    </div>
+                    <div class="card-body danger-row">
+                        <% if (field.usedBy.length) { %>
+                            <p>To delete this field, first remove it from <%= field.usedBy.map((object) => object.name).join(', ') %>.</p>
+                        <% } else { %>
+                            <p>Deleting the field removes it from the dictionary. APIs using it keep their copy.</p>
+                            <button type="button" class="btn btn-danger btn-sm"
+                                data-action="/api/org/dictionary/fields/<%= field.id %>" data-method="DELETE"
+                                data-confirm-title="Delete <%= field.name %>?"
+                                data-confirm-message="The field is removed from the dictionary. It can't be undone."
+                                data-confirm-label="Delete field" data-danger
+                                data-success="<%= field.name %> was deleted"
+                                data-redirect="/developer/dictionary">
+                                <%- include('partials/icon.html', { name: 'trash' }) %>Delete field
+                            </button>
+                        <% } %>
+                    </div>
+                </section>
+            </aside>
+        </div>
+
+        <section class="field-structure" data-structure <%= field.schema.type === 'object' ? '' : 'hidden' %>>
+            <div class="section-heading">
+                <h2>Structure</h2>
+                <p>The properties of this object: values, nested objects and lists of objects. They are saved with <strong>Save field</strong>.</p>
+            </div>
+            <div data-structure-editor data-config="<%= JSON.stringify({
+                name: field.name,
+                schema: { type: 'object', properties: field.schema.properties || {}, ...(field.schema.required ? { required: field.schema.required } : {}) },
+                fields: editorFields,
+            }) %>">
+                <%- include('partials/schema-editor.html', { name: field.name, showSave: true, saveLabel: 'Save field', fields: editorFields, fieldTypes, itemTypes }) %>
+            </div>
+        </section>
+    </main>
+
+    <script src="/js/ui.js"></script>
+    <script src="/js/field-form.js"></script>
+    <script src="/js/schema-editor.js"></script>
+    <script src="/js/dictionary-field.js"></script>
+</body>
+</html>

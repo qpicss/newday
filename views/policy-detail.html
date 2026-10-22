@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <%- include('partials/head.html', { title: policy.name }) %>
+</head>
+<body>
+    <%- include('partials/app-nav.html', { active: 'gateways' }) %>
+    <%
+    const policyUrl = '/api/org/policies/' + policy.id;
+    const usedBy = policy.apis.length + policy.ports.length;
+    const ownerApi = policy.apis.find((api) => api.id === policy.ownerApiId);
+    %>
+
+    <main id="main" class="page page-wide">
+        <nav class="breadcrumb" aria-label="Breadcrumb">
+            <a href="/developer/policies">Policies</a>
+            <%- include('partials/icon.html', { name: 'chevron-right' }) %>
+            <span aria-current="page"><%= policy.name %></span>
+        </nav>
+
+        <form id="policyForm" class="flow-page" novalidate
+            data-policy-url="<%= policyUrl %>"
+            data-flow="<%= JSON.stringify(policy.flow) %>"
+            data-description="<%= policy.description || '' %>"
+            data-connections="<%= JSON.stringify(connections) %>"
+            data-default-script="<%= defaultScript %>"
+            data-backend-url="<%= backendUrl %>">
+            <header class="card flow-header">
+                <div class="flow-title">
+                    <label class="sr-only" for="name">Policy name</label>
+                    <input class="flow-name-input" type="text" id="name" name="name" value="<%= policy.name %>" maxlength="255" required>
+                    <p class="flow-meta">
+                        <% if (usedBy) { %>
+                            Runs for
+                            <% policy.apis.forEach((api, index) => { %><%= index ? ', ' : '' %><a href="/developer/apis/<%= api.id %>"><%= api.name %></a><% }); %><% policy.ports.forEach((port, index) => { %><%= index || policy.apis.length ? ', ' : '' %><a href="/developer/gateways/<%= port.gatewayId %>#handlers">port <%= port.port %> of <%= port.gateway %></a><% }); %>.
+                        <% } else { %>
+                            Not used yet. Choose it on an API's page or as a port policy.
+                        <% } %>
+                        Saved <%= formatDate(policy.updatedAt) %>; changes reach gateways on the next push.
+                    </p>
+                </div>
+                <div class="flow-header-actions">
+                    <span class="flow-status" id="flowStatus" role="status"></span>
+                    <span class="hint editor-shortcut" id="dirtyNote">Ctrl+S to save</span>
+                    <button type="submit" class="btn btn-primary">Save policy</button>
+                </div>
+            </header>
+            <div id="form-alert" class="alert alert-danger" role="alert" hidden>
+                <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+            </div>
+
+            <div class="flow-workspace">
+                <aside class="card flow-palette" aria-labelledby="palette-title">
+                    <h2 id="palette-title" class="flow-panel-title">Add a step</h2>
+                    <div class="palette-list">
+                        <button type="button" class="palette-item" data-add-step="script">
+                            <span class="flow-icon type-script"><%- include('partials/icon.html', { name: 'file-code' }) %></span>
+                            <span class="palette-text"><strong>Gateway script</strong><span>Run your JavaScript</span></span>
+                        </button>
+                        <button type="button" class="palette-item" data-add-step="if">
+                            <span class="flow-icon type-if"><%- include('partials/icon.html', { name: 'git-branch' }) %></span>
+                            <span class="palette-text"><strong>If</strong><span>Choose a path by condition</span></span>
+                        </button>
+                        <button type="button" class="palette-item" data-add-step="invoke">
+                            <span class="flow-icon type-invoke"><%- include('partials/icon.html', { name: 'send' }) %></span>
+                            <span class="palette-text"><strong>Invoke service</strong><span>Call a backend over HTTP</span></span>
+                        </button>
+                        <button type="button" class="palette-item" data-add-step="validateRequest">
+                            <span class="flow-icon type-validateRequest"><%- include('partials/icon.html', { name: 'list-check' }) %></span>
+                            <span class="palette-text"><strong>Validate request</strong><span>Headers and query against OpenAPI</span></span>
+                        </button>
+                        <button type="button" class="palette-item" data-add-step="validateBody">
+                            <span class="flow-icon type-validateBody"><%- include('partials/icon.html', { name: 'file-check' }) %></span>
+                            <span class="palette-text"><strong>Validate body</strong><span>The body against its schema</span></span>
+                        </button>
+                        <button type="button" class="palette-item" data-add-step="security">
+                            <span class="flow-icon type-security"><%- include('partials/icon.html', { name: 'shield-check' }) %></span>
+                            <span class="palette-text"><strong>Security</strong><span>Injection, limits, brute force</span></span>
+                        </button>
+                    </div>
+                    <p class="hint">Click to insert after the selected step, or drag onto the canvas.</p>
+                    <div class="flow-problems" id="flowProblems" aria-live="polite"></div>
+                </aside>
+
+                <section class="card flow-canvas-card" aria-label="Flow">
+                    <div class="flow-toolbar">
+                        <span class="flow-toolbar-title">Flow</span>
+                        <div class="flow-toolbar-actions">
+                            <button type="button" class="btn btn-ghost btn-sm btn-icon" data-canvas="zoom-out" aria-label="Zoom out" title="Zoom out"><%- include('partials/icon.html', { name: 'zoom-out' }) %></button>
+                            <span class="flow-zoom" data-zoom-label>100%</span>
+                            <button type="button" class="btn btn-ghost btn-sm btn-icon" data-canvas="zoom-in" aria-label="Zoom in" title="Zoom in"><%- include('partials/icon.html', { name: 'zoom-in' }) %></button>
+                            <button type="button" class="btn btn-ghost btn-sm btn-icon" data-canvas="fit" aria-label="Fit the flow on screen" title="Fit on screen"><%- include('partials/icon.html', { name: 'maximize' }) %></button>
+                            <button type="button" class="btn btn-ghost btn-sm" data-canvas="tidy" title="Arrange the steps from left to right"><%- include('partials/icon.html', { name: 'layout' }) %>Tidy up</button>
+                        </div>
+                    </div>
+                    <div class="flow-canvas" id="flowCanvas" tabindex="0"
+                        aria-label="Policy flow. Select a step to edit it; Delete removes the selected step or line; arrow keys move the selected step.">
+                        <div class="flow-world" id="flowWorld">
+                            <svg class="flow-edges" id="flowEdges" aria-hidden="true">
+                                <defs>
+                                    <marker id="flow-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                                        <path d="M0 0L10 5L0 10z" class="flow-arrow-head"></path>
+                                    </marker>
+                                    <marker id="flow-arrow-active" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                                        <path d="M0 0L10 5L0 10z" class="flow-arrow-head-active"></path>
+                                    </marker>
+                                </defs>
+                            </svg>
+                        </div>
+                        <button type="button" class="flow-edge-delete" id="edgeDelete" hidden aria-label="Remove this line" title="Remove this line"><%- include('partials/icon.html', { name: 'x' }) %></button>
+                    </div>
+                    <p class="flow-canvas-hint">Drag from the dot on the right of a step to another step to connect them. Drag the background to move around; Ctrl + scroll zooms.</p>
+                </section>
+
+                <aside class="card flow-inspector" id="inspector" aria-label="Step settings"></aside>
+            </div>
+
+            <section class="card test-panel" id="test" data-test-url="/api/org/policies/test">
+                <div class="card-header">
+                    <div>
+                        <h2>Test</h2>
+                        <p>Runs the flow in the editor (saved or not) on one of your gateway nodes with a sample request. Nothing is deployed. Invoke steps and <code>http</code> calls reach their services for real.</p>
+                    </div>
+                </div>
+                <div class="card-body form">
+                    <div class="field-row">
+                        <div class="field">
+                            <label for="testApi">Run as API</label>
+                            <select class="select select-sm" id="testApi" aria-describedby="test-api-hint">
+                                <option value="">No API (steps that call the API's backend fail)</option>
+                                <% const preferred = ownerApi || apis.find((api) => api.usesThis); %>
+                                <% apis.forEach((api) => { %><option value="<%= api.id %>" <%= preferred && preferred.id === api.id ? 'selected' : '' %>><%= api.name %><%= api.hasBackend ? '' : ' (no server URL)' %></option><% }); %>
+                            </select>
+                            <span id="test-api-hint" class="hint">The test uses its connection, its server URL for backend steps without a Backend URL, and its OpenAPI operations for Validate steps.</span>
+                        </div>
+                        <div class="field field-narrow">
+                            <label for="testMethod">Method</label>
+                            <select class="select select-sm" id="testMethod">
+                                <% ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].forEach((method) => { %><option value="<%= method %>" <%= method === 'POST' ? 'selected' : '' %>><%= method %></option><% }); %>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label for="testPath">Operation path</label>
+                            <input class="input input-sm mono" type="text" id="testPath" value="/orders/42" maxlength="2000">
+                        </div>
+                    </div>
+                    <div class="field-row">
+                        <div class="field">
+                            <label for="testQuery">Query (JSON)</label>
+                            <textarea class="textarea mono" id="testQuery" rows="3" spellcheck="false">{ "debug": "false" }</textarea>
+                        </div>
+                        <div class="field">
+                            <label for="testHeaders">Headers (JSON)</label>
+                            <textarea class="textarea mono" id="testHeaders" rows="3" spellcheck="false">{ "content-type": "application/json" }</textarea>
+                        </div>
+                        <div class="field">
+                            <label for="testBody">Body</label>
+                            <textarea class="textarea mono" id="testBody" rows="3" spellcheck="false">{ "quantity": 2 }</textarea>
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-primary" id="runTest"><%- include('partials/icon.html', { name: 'play' }) %>Run test</button>
+                        <button type="button" class="btn btn-ghost" id="clearTest" hidden>Clear result</button>
+                    </div>
+                    <div class="test-output" id="testOutput" hidden aria-live="polite">
+                        <div class="alert" data-test-status role="status"></div>
+                        <div class="test-result-grid">
+                            <div>
+                                <p class="label">Steps</p>
+                                <ol class="test-steps" data-test-steps></ol>
+                            </div>
+                            <div class="stack-sm">
+                                <p class="label">Response to the client</p>
+                                <pre data-test-response></pre>
+                                <div data-test-variables-wrap hidden>
+                                    <p class="label">Variables</p>
+                                    <pre data-test-variables></pre>
+                                </div>
+                                <div data-test-sent-wrap hidden>
+                                    <p class="label">Last request sent by an Invoke step</p>
+                                    <pre data-test-sent></pre>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </form>
+    </main>
+
+    <%# Icons the canvas draws inside its steps. %>
+    <template id="flow-icons">
+        <span data-icon="input"><%- include('partials/icon.html', { name: 'log-in' }) %></span>
+        <span data-icon="output"><%- include('partials/icon.html', { name: 'flag' }) %></span>
+        <span data-icon="script"><%- include('partials/icon.html', { name: 'file-code' }) %></span>
+        <span data-icon="if"><%- include('partials/icon.html', { name: 'git-branch' }) %></span>
+        <span data-icon="invoke"><%- include('partials/icon.html', { name: 'send' }) %></span>
+        <span data-icon="validateRequest"><%- include('partials/icon.html', { name: 'list-check' }) %></span>
+        <span data-icon="validateBody"><%- include('partials/icon.html', { name: 'file-check' }) %></span>
+        <span data-icon="security"><%- include('partials/icon.html', { name: 'shield-check' }) %></span>
+        <span data-icon="x"><%- include('partials/icon.html', { name: 'x' }) %></span>
+        <span data-icon="alert"><%- include('partials/icon.html', { name: 'alert' }) %></span>
+        <span data-icon="check"><%- include('partials/icon.html', { name: 'check' }) %></span>
+    </template>
+
+    <%# Inspector panels, filled in by policy-detail.js. data-field: the step's own fields; data-config: its settings. %>
+    <template id="panel-overview">
+        <div class="inspector-head">
+            <h2 class="flow-panel-title">Policy</h2>
+            <p class="hint">Select a step on the canvas to change its settings.</p>
+        </div>
+        <div class="inspector-body">
+            <div class="field">
+                <label for="description">Description <span class="label-optional">(optional)</span></label>
+                <textarea class="textarea" id="description" rows="3" maxlength="2000" data-description></textarea>
+            </div>
+            <div class="inspector-section">
+                <h3 class="inspector-section-title">How a request moves</h3>
+                <ol class="flow-explainer">
+                    <li><strong>Input</strong> receives the call once the gateway has checked the access token, the subscription and the product's rate limit.</li>
+                    <li>Each step reads and changes <code>callcontext</code>: the request, the response once a step set one, and <code>variables</code>.</li>
+                    <li><strong>Output</strong> answers with the response, or with the request itself when no step set one. Add an <strong>Invoke service</strong> step to call the backend.</li>
+                </ol>
+            </div>
+            <div class="inspector-section">
+                <h3 class="inspector-section-title">Delete</h3>
+                <p class="hint">APIs using this policy return each request as it is after the next push; ports run without a port policy.</p>
+                <button type="button" class="btn btn-danger btn-sm" data-delete-policy
+                    data-action="<%= policyUrl %>" data-method="DELETE"
+                    data-confirm-title="Delete <%= policy.name %>?"
+                    data-confirm-message="<%= policy.apis.length %> API<%= policy.apis.length === 1 ? '' : 's' %> and <%= policy.ports.length %> port<%= policy.ports.length === 1 ? '' : 's' %> use this policy."
+                    data-confirm-label="Delete policy" data-danger
+                    data-success="<%= policy.name %> was deleted"
+                    data-redirect="/developer/policies">
+                    <%- include('partials/icon.html', { name: 'trash' }) %>Delete policy
+                </button>
+            </div>
+        </div>
+    </template>
+
+    <template id="panel-input">
+        <div class="inspector-head">
+            <span class="flow-icon type-input"><%- include('partials/icon.html', { name: 'log-in' }) %></span>
+            <div><h2 class="flow-panel-title">Input</h2><p class="hint">Where every request enters the flow.</p></div>
+        </div>
+        <div class="inspector-body">
+            <p class="inspector-text">The gateway has already checked the caller's access token, its subscription and the product's rate limit. Steps see the request as <code>callcontext</code>: <code>method</code>, <code>path</code> (the operation path), <code>query</code>, <code>headers</code> without <code>authorization</code>, and <code>body</code>.</p>
+            <div class="field" data-next-field="next"><label>First step</label></div>
+        </div>
+    </template>
+
+    <template id="panel-output">
+        <div class="inspector-head">
+            <span class="flow-icon type-output"><%- include('partials/icon.html', { name: 'flag' }) %></span>
+            <div><h2 class="flow-panel-title">Output</h2><p class="hint">Where the flow answers the client.</p></div>
+        </div>
+        <div class="inspector-body">
+            <p class="inspector-text">The client receives <code>callcontext.response</code>: what the last Invoke step got back, or what a script set. When no step set a response, the client gets the request body and content type exactly as they arrived (with any changes your scripts made).</p>
+        </div>
+    </template>
+
+    <template id="panel-edge">
+        <div class="inspector-head">
+            <div><h2 class="flow-panel-title">Line</h2><p class="hint" data-edge-summary></p></div>
+        </div>
+        <div class="inspector-body">
+            <button type="button" class="btn btn-secondary btn-sm" data-remove-edge><%- include('partials/icon.html', { name: 'trash' }) %>Remove line</button>
+        </div>
+    </template>
+
+    <template id="panel-script">
+        <div class="inspector-head">
+            <span class="flow-icon type-script"><%- include('partials/icon.html', { name: 'file-code' }) %></span>
+            <div><h2 class="flow-panel-title">Gateway script</h2><p class="hint">JavaScript that reads and changes <code>callcontext</code>.</p></div>
+        </div>
+        <div class="inspector-body">
+            <div class="field">
+                <label for="stepName">Name</label>
+                <input class="input input-sm" type="text" id="stepName" maxlength="80" data-field="name">
+            </div>
+            <div class="field">
+                <span class="label">Script</span>
+                <div class="upload-row">
+                    <label class="btn btn-secondary btn-sm" for="scriptFile"><%- include('partials/icon.html', { name: 'upload' }) %>Upload .js file</label>
+                    <input class="sr-only" type="file" id="scriptFile" accept=".js,.mjs,.cjs,text/javascript,application/javascript" data-upload-script>
+                    <span class="hint" data-file-name></span>
+                    <button type="button" class="btn btn-ghost btn-sm upload-row-end" data-wide-editor aria-pressed="false"><%- include('partials/icon.html', { name: 'maximize' }) %><span>Wider editor</span></button>
+                </div>
+                <label class="sr-only" for="scriptCode">Script code</label>
+                <textarea class="code-editor code-editor-sm" id="scriptCode" spellcheck="false" autocapitalize="off" autocomplete="off" wrap="off" data-config="code"></textarea>
+            </div>
+            <div class="field-row">
+                <div class="field field-narrow">
+                    <label for="scriptTimeout">Time limit (ms)</label>
+                    <input class="input input-sm" type="number" id="scriptTimeout" min="10" max="30000" step="1" data-config="timeoutMs" data-number>
+                </div>
+                <div class="field">
+                    <label for="scriptExample">Start from an example</label>
+                    <select class="select select-sm" id="scriptExample" data-example>
+                        <option value="">Choose…</option>
+                        <option value="header">Add headers</option>
+                        <option value="body">Reshape the JSON body</option>
+                        <option value="jwt">Check a JWT from the caller</option>
+                        <option value="ratelimit">Rate limit by IP address</option>
+                        <option value="http">Enrich with a REST call</option>
+                        <option value="response">Change the response</option>
+                        <option value="signature">Sign the request</option>
+                        <option value="block">Answer without a backend</option>
+                    </select>
+                </div>
+            </div>
+            <div class="field" data-next-field="next"><label>Next step</label></div>
+            <details class="inspector-section reference">
+                <summary>callcontext and libraries</summary>
+                <dl class="detail-list detail-list-compact api-reference">
+                    <div><dt><code>original</code></dt><dd>The incoming request, read-only: <code>method</code>, <code>path</code>, <code>params</code>, <code>query</code>, <code>headers</code>, <code>body</code>, <code>remoteAddress</code>.</dd></div>
+                    <div><dt><code>method</code> <code>path</code> <code>query</code> <code>headers</code> <code>body</code></dt><dd>The request as the next steps see it (read/write). <code>body</code> is a string, or an object sent as JSON.</dd></div>
+                    <div><dt><code>response</code></dt><dd><code>null</code>, or <code>{ status, headers, body }</code> once an Invoke step or a script set it (read/write).</dd></div>
+                    <div><dt><code>variables</code></dt><dd>Values shared by the steps of this request (JSON). Invoke steps can store their result here.</dd></div>
+                    <div><dt><code>reply()</code></dt><dd><code>reply(status, body, headers)</code> answers the client now and skips the rest of the flow.</dd></div>
+                    <div><dt><code>consumer</code></dt><dd><code>clientId</code>, <code>application</code> and <code>product</code>. Also <code>api</code>, <code>request</code> (what the last Invoke sent), <code>requestId</code>, <code>traceId</code>.</dd></div>
+                    <div><dt><code>crypto</code></dt><dd><code>await crypto.hash('sha512', data)</code>, <code>hmac(alg, key, data, 'base64')</code>, <code>randomUUID()</code>, <code>randomBytes(16)</code>, <code>encrypt(text, key)</code>, <code>decrypt(token, key)</code>.</dd></div>
+                    <div><dt><code>hash</code></dt><dd><code>await hash.sha256(data)</code>, also <code>md5</code>, <code>sha1</code>, <code>sha384</code>, <code>sha512</code>, <code>hmac</code>.</dd></div>
+                    <div><dt><code>jwt</code></dt><dd><code>await jwt.sign(payload, secretOrPem, { expiresIn: '5m' })</code>, <code>await jwt.verify(token, key, { issuer })</code>, <code>jwt.decode(token)</code>.</dd></div>
+                    <div><dt><code>http</code></dt><dd>REST client: <code>await http.get(url, { headers })</code>, <code>post(url, body)</code>, <code>put</code>, <code>patch</code>, <code>delete</code>, <code>request({ method, url, headers, body, query, timeoutMs, connection })</code>. Returns <code>{ status, ok, headers, body, json }</code>.</dd></div>
+                    <div><dt><code>rateLimit</code></dt><dd><code>await rateLimit.check(key, 10, 'minute')</code> counts one request for that key and returns <code>{ allowed, remaining, resetSeconds }</code>.</dd></div>
+                    <div><dt><code>querystring</code></dt><dd><code>parse('a=1&amp;b=2')</code>, <code>stringify({ a: 1 })</code>. Also <code>base64</code> and <code>console</code>.</dd></div>
+                </dl>
+                <p class="hint reference-note">Scripts run in isolated worker threads with no <code>require</code>, timers or file access, and must finish within their time limit, including the calls they await.</p>
+            </details>
+        </div>
+    </template>
+
+    <template id="panel-if">
+        <div class="inspector-head">
+            <span class="flow-icon type-if"><%- include('partials/icon.html', { name: 'git-branch' }) %></span>
+            <div><h2 class="flow-panel-title">If</h2><p class="hint">Sends the request down the Yes or the No line.</p></div>
+        </div>
+        <div class="inspector-body">
+            <div class="field">
+                <label for="stepName">Name</label>
+                <input class="input input-sm" type="text" id="stepName" maxlength="80" data-field="name">
+            </div>
+            <fieldset class="field">
+                <legend class="label">Take the Yes line when</legend>
+                <div class="segmented" role="radiogroup">
+                    <label class="segmented-option"><input type="radio" name="ifMatch" value="all" data-config="match"><span>all conditions match</span></label>
+                    <label class="segmented-option"><input type="radio" name="ifMatch" value="any" data-config="match"><span>any condition matches</span></label>
+                </div>
+            </fieldset>
+            <div class="condition-list" data-conditions></div>
+            <button type="button" class="btn btn-ghost btn-sm add-row" data-add-condition><%- include('partials/icon.html', { name: 'plus' }) %>Add condition</button>
+            <div class="field" data-next-field="true"><label>Yes: go to</label></div>
+            <div class="field" data-next-field="false"><label>No: go to</label></div>
+            <p class="hint">Need more than a comparison? Put the logic in a Gateway script, store the outcome in <code>callcontext.variables</code>, and check that variable here.</p>
+        </div>
+    </template>
+
+    <template id="condition-row">
+        <div class="condition-row">
+            <select class="select select-sm" data-condition="source" aria-label="What to check">
+                <% Object.entries(conditionSources).forEach(([value, source]) => { %><option value="<%= value %>"><%= source.label %></option><% }); %>
+            </select>
+            <input class="input input-sm mono" type="text" data-condition="name" maxlength="200" aria-label="Name">
+            <select class="select select-sm" data-condition="operator" aria-label="Comparison">
+                <% Object.entries(operators).forEach(([value, label]) => { %><option value="<%= value %>"><%= label %></option><% }); %>
+            </select>
+            <input class="input input-sm mono" type="text" data-condition="value" maxlength="2000" aria-label="Value">
+            <button type="button" class="btn btn-ghost btn-sm btn-icon" data-remove-condition aria-label="Remove this condition"><%- include('partials/icon.html', { name: 'x' }) %></button>
+        </div>
+    </template>
+
+    <template id="pair-row">
+        <div class="pair-row">
+            <input class="input input-sm mono" type="text" data-pair="name" maxlength="100" aria-label="Name" placeholder="name">
+            <input class="input input-sm mono" type="text" data-pair="value" maxlength="2000" aria-label="Value" placeholder="value or {{ template }}">
+            <button type="button" class="btn btn-ghost btn-sm btn-icon" data-remove-pair aria-label="Remove"><%- include('partials/icon.html', { name: 'x' }) %></button>
+        </div>
+    </template>
+
+    <template id="panel-invoke">
+        <div class="inspector-head">
+            <span class="flow-icon type-invoke"><%- include('partials/icon.html', { name: 'send' }) %></span>
+            <div><h2 class="flow-panel-title">Invoke service</h2><p class="hint">Sends an HTTP request and keeps the answer.</p></div>
+        </div>
+        <div class="inspector-body">
+            <div class="field">
+                <label for="stepName">Name</label>
+                <input class="input input-sm" type="text" id="stepName" maxlength="80" data-field="name">
+            </div>
+            <fieldset class="field">
+                <legend class="label">Call</legend>
+                <div class="segmented" role="radiogroup">
+                    <label class="segmented-option"><input type="radio" name="invokeTarget" value="backend" data-config="target"><span>The API's backend</span></label>
+                    <label class="segmented-option"><input type="radio" name="invokeTarget" value="url" data-config="target"><span>Another service</span></label>
+                </div>
+                <span class="hint" data-show-target="backend">The server that runs the API. It is told who called (X-Forwarded-For, X-Gateway-Client-Id) and uses the API's connection.</span>
+            </fieldset>
+            <div class="field">
+                <label for="invokeUrl"><span data-show-target="backend">Backend URL</span><span data-show-target="url">URL</span></label>
+                <input class="input input-sm mono" type="text" id="invokeUrl" maxlength="20000" placeholder="https://orders.internal.example.com/v1" data-config="url" data-url-input>
+                <span class="hint" data-show-target="backend">The full address, for example https://orders.internal.example.com/v1. Left empty, the server in the API's OpenAPI document is used.</span>
+                <span class="hint">You can insert values: <code>{{ request.headers.x-tenant }}</code>, <code>{{ variables.userId }}</code>, <code>{{ request.json.orderId }}</code>.</span>
+            </div>
+            <label class="checkbox-row"><input type="checkbox" data-config="appendPath" aria-describedby="invoke-append-hint"> Add the request's path and query to the URL</label>
+            <span class="hint" id="invoke-append-hint">Off: the URL is called exactly as written. On: the path after the API's base path is added, so /orders/getOkMe on https://backend/v1 calls https://backend/v1/getOkMe.</span>
+            <div class="field-row">
+                <div class="field">
+                    <label for="invokeMethod">Method</label>
+                    <select class="select select-sm" id="invokeMethod" data-config="method">
+                        <option value="request">Same as the request</option>
+                        <% methods.forEach((method) => { %><option value="<%= method %>"><%= method %></option><% }); %>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="invokeConnection">Connection</label>
+                    <select class="select select-sm" id="invokeConnection" data-config="connectionId" data-nullable>
+                        <option value="">The API's connection (or defaults)</option>
+                        <% connections.forEach((connection) => { %><option value="<%= connection.id %>"><%= connection.name %></option><% }); %>
+                    </select>
+                </div>
+            </div>
+            <span class="hint">A <a href="/developer/connections">connection</a> sets timeouts, retries, the circuit breaker, credentials and TLS (custom CA, client certificate).</span>
+            <div class="field-row">
+                <div class="field">
+                    <label for="invokeTimeout">Timeout (ms)</label>
+                    <input class="input input-sm" type="number" id="invokeTimeout" min="100" max="300000" step="100" placeholder="From the connection" data-config="timeoutMs" data-number data-nullable>
+                </div>
+                <div class="field">
+                    <label for="invokeRedirects">Follow redirects</label>
+                    <select class="select select-sm" id="invokeRedirects" data-config="followRedirects" data-number>
+                        <option value="0">No</option>
+                        <% [1, 2, 3, 4, 5].forEach((count) => { %><option value="<%= count %>">Up to <%= count %></option><% }); %>
+                    </select>
+                </div>
+            </div>
+
+            <div class="inspector-section">
+                <h3 class="inspector-section-title">Headers</h3>
+                <label class="checkbox-row"><input type="checkbox" data-config="forwardHeaders"> Send the request's headers</label>
+                <div class="pair-list" data-pairs="headers"></div>
+                <button type="button" class="btn btn-ghost btn-sm add-row" data-add-pair="headers"><%- include('partials/icon.html', { name: 'plus' }) %>Set a header</button>
+                <div class="field">
+                    <label for="invokeRemove">Remove headers <span class="label-optional">(comma separated)</span></label>
+                    <input class="input input-sm mono" type="text" id="invokeRemove" placeholder="cookie, x-internal" data-config="removeHeaders" data-list>
+                </div>
+            </div>
+            <div class="inspector-section">
+                <h3 class="inspector-section-title">Query parameters</h3>
+                <div class="pair-list" data-pairs="query"></div>
+                <button type="button" class="btn btn-ghost btn-sm add-row" data-add-pair="query"><%- include('partials/icon.html', { name: 'plus' }) %>Set a parameter</button>
+            </div>
+            <div class="inspector-section">
+                <h3 class="inspector-section-title">Body</h3>
+                <div class="field">
+                    <label class="sr-only" for="invokeBody">Body</label>
+                    <select class="select select-sm" id="invokeBody" data-config="body">
+                        <option value="request">The request's body</option>
+                        <option value="none">No body</option>
+                        <option value="custom">A body I write</option>
+                    </select>
+                </div>
+                <div class="field" data-show-body="custom">
+                    <label for="invokeTemplate">Body template</label>
+                    <textarea class="textarea mono" id="invokeTemplate" rows="4" spellcheck="false" placeholder='{ "order": {{ request.body }}, "client": "{{ consumer.clientId }}" }' data-config="bodyTemplate"></textarea>
+                </div>
+                <div class="field">
+                    <label for="invokeContentType">Content type <span class="label-optional">(optional)</span></label>
+                    <input class="input input-sm mono" type="text" id="invokeContentType" maxlength="200" placeholder="application/json" data-config="contentType">
+                </div>
+            </div>
+            <div class="inspector-section">
+                <h3 class="inspector-section-title">Answer</h3>
+                <div class="segmented" role="radiogroup" aria-label="What to do with the answer">
+                    <label class="segmented-option"><input type="radio" name="invokeResponseTo" value="response" data-config="responseTo"><span>Use as the response</span></label>
+                    <label class="segmented-option"><input type="radio" name="invokeResponseTo" value="variable" data-config="responseTo"><span>Store in a variable</span></label>
+                </div>
+                <div class="field" data-show-response="variable">
+                    <label for="invokeVariable">Variable name</label>
+                    <input class="input input-sm mono" type="text" id="invokeVariable" maxlength="64" placeholder="backendResult" data-config="variable">
+                    <span class="hint">Later steps read <code>callcontext.variables.<span data-variable-name>name</span></code>: <code>{ status, headers, body, json }</code>.</span>
+                </div>
+                <div class="field">
+                    <label for="invokeOnError">When the service can't be reached or times out</label>
+                    <select class="select select-sm" id="invokeOnError" data-config="onError">
+                        <option value="fail">Stop and answer with the error (502 or 504)</option>
+                        <option value="continue">Continue, with the error as the answer</option>
+                    </select>
+                </div>
+            </div>
+            <div class="field" data-next-field="next"><label>Next step</label></div>
+        </div>
+    </template>
+
+    <template id="panel-validateRequest">
+        <div class="inspector-head">
+            <span class="flow-icon type-validateRequest"><%- include('partials/icon.html', { name: 'list-check' }) %></span>
+            <div><h2 class="flow-panel-title">Validate request</h2><p class="hint">Checks headers and the query string against the API's OpenAPI definition.</p></div>
+        </div>
+        <div class="inspector-body">
+            <div class="field">
+                <label for="stepName">Name</label>
+                <input class="input input-sm" type="text" id="stepName" maxlength="80" data-field="name">
+            </div>
+            <fieldset class="field">
+                <legend class="label">Check</legend>
+                <label class="checkbox-row"><input type="checkbox" id="validateHeaders" data-config="headers" aria-describedby="validate-headers-hint"> Headers</label>
+                <span class="hint" id="validate-headers-hint">Each header parameter the operation declares: present when required, and matching its schema (type, enum, format, pattern, length, range). Accept, Content-Type and Authorization are not checked, as OpenAPI defines.</span>
+                <label class="checkbox-row"><input type="checkbox" id="validateQuery" data-config="query" aria-describedby="validate-query-hint"> Query string</label>
+                <span class="hint" id="validate-query-hint">Each query parameter the operation declares, read the way its style says: repeated (<code>?id=1&amp;id=2</code>), comma separated or <code>filter[min]=3</code>.</span>
+                <label class="checkbox-row" data-show-query><input type="checkbox" id="validateUnknownQuery" data-config="rejectUnknownQuery"> Also reject query parameters the operation doesn't declare</label>
+            </fieldset>
+            <div class="inspector-section">
+                <h3 class="inspector-section-title">When the request doesn't match</h3>
+                <p class="inspector-text">The gateway answers <strong>422</strong> and skips the rest of the flow. The client sees every problem:</p>
+                <pre class="inspector-example">{
+  "error": "invalid_request",
+  "message": "The request does not match the API definition",
+  "errors": [
+    { "in": "query", "name": "limit", "message": "must be at most 100" },
+    { "in": "header", "name": "X-Tenant", "message": "is required" }
+  ]
+}</pre>
+                <p class="hint">The operation is the one the request matched (method and path). Put this step first, before steps that call a backend.</p>
+            </div>
+            <div class="field" data-next-field="next"><label>Next step</label></div>
+        </div>
+    </template>
+
+    <template id="panel-validateBody">
+        <div class="inspector-head">
+            <span class="flow-icon type-validateBody"><%- include('partials/icon.html', { name: 'file-check' }) %></span>
+            <div><h2 class="flow-panel-title">Validate body</h2><p class="hint">Checks the request body against the operation's requestBody schema.</p></div>
+        </div>
+        <div class="inspector-body">
+            <div class="field">
+                <label for="stepName">Name</label>
+                <input class="input input-sm" type="text" id="stepName" maxlength="80" data-field="name">
+            </div>
+            <ul class="inspector-list">
+                <li>A body the definition marks as required must be sent.</li>
+                <li>The Content-Type must be one the operation accepts, otherwise the answer is <strong>415</strong>.</li>
+                <li>JSON, form (<code>application/x-www-form-urlencoded</code>) and text bodies are checked against the schema: types, required properties, enum, format, pattern, lengths, ranges, items, <code>allOf</code>, <code>oneOf</code>, <code>anyOf</code>. Other media types are only checked for their Content-Type.</li>
+            </ul>
+            <label class="checkbox-row"><input type="checkbox" id="validateUnknown" data-config="rejectUnknown" aria-describedby="validate-unknown-hint"> Reject properties the schema doesn't declare</label>
+            <span class="hint" id="validate-unknown-hint">For objects whose schema leaves <code>additionalProperties</code> unset. A schema that sets it decides for itself.</span>
+            <div class="inspector-section">
+                <h3 class="inspector-section-title">When the body doesn't match</h3>
+                <p class="inspector-text">The gateway answers <strong>422</strong> and skips the rest of the flow:</p>
+                <pre class="inspector-example">{
+  "error": "invalid_body",
+  "message": "The request body does not match the API definition",
+  "errors": [
+    { "path": "/quantity", "message": "must be at least 1" },
+    { "path": "/customer/email", "message": "must be a valid email" }
+  ]
+}</pre>
+            </div>
+            <div class="field" data-next-field="next"><label>Next step</label></div>
+        </div>
+    </template>
+
+    <template id="panel-security">
+        <div class="inspector-head">
+            <span class="flow-icon type-security"><%- include('partials/icon.html', { name: 'shield-check' }) %></span>
+            <div><h2 class="flow-panel-title">Security</h2><p class="hint">Stops attacks before they reach a backend.</p></div>
+        </div>
+        <div class="inspector-body">
+            <div class="field">
+                <label for="stepName">Name</label>
+                <input class="input input-sm" type="text" id="stepName" maxlength="80" data-field="name">
+            </div>
+            <fieldset class="field">
+                <legend class="label">When a threat is found</legend>
+                <div class="segmented" role="radiogroup">
+                    <label class="segmented-option"><input type="radio" name="securityMode" value="block" data-config="mode"><span>Block the request</span></label>
+                    <label class="segmented-option"><input type="radio" name="securityMode" value="monitor" data-config="mode"><span>Only log it</span></label>
+                </div>
+                <span class="hint" data-show-mode="block">Blocked requests get 403 (attacks and addresses), 413 or 400 (limits) or 429 (locked out). The suspicious value is never echoed or logged, only the rule and where it was found.</span>
+                <span class="hint" data-show-mode="monitor">Requests go on; findings appear in the gateway log and the request log. Use this to check for false alarms before blocking.</span>
+            </fieldset>
+
+            <div class="inspector-section">
+                <h3 class="inspector-section-title">Injection attacks</h3>
+                <label class="checkbox-row"><input type="checkbox" id="secSql" data-config="sqlInjection"> SQL injection <span class="hint-inline">' OR '1'='1, UNION SELECT, ; DROP TABLE</span></label>
+                <label class="checkbox-row"><input type="checkbox" id="secXss" data-config="scriptInjection"> Script injection (XSS) <span class="hint-inline">&lt;script&gt;, javascript:, event attributes</span></label>
+                <label class="checkbox-row"><input type="checkbox" id="secPath" data-config="pathTraversal"> Path traversal <span class="hint-inline">../, %2e%2e/, /etc/passwd</span></label>
+                <label class="checkbox-row"><input type="checkbox" id="secCmd" data-config="commandInjection"> Command injection <span class="hint-inline">; cat /etc/passwd, $(curl …), ${jndi:</span></label>
+                <label class="checkbox-row"><input type="checkbox" id="secNosql" data-config="nosqlInjection"> NoSQL operators and prototype keys <span class="hint-inline">{"$ne": null}, __proto__</span></label>
+                <fieldset class="field">
+                    <legend class="label">Look in</legend>
+                    <div class="checkbox-inline-group">
+                        <label class="checkbox-row"><input type="checkbox" id="secScanPath" data-config="scanPath"> Path</label>
+                        <label class="checkbox-row"><input type="checkbox" id="secScanQuery" data-config="scanQuery"> Query string</label>
+                        <label class="checkbox-row"><input type="checkbox" id="secScanHeaders" data-config="scanHeaders"> Headers</label>
+                        <label class="checkbox-row"><input type="checkbox" id="secScanBody" data-config="scanBody"> Body</label>
+                    </div>
+                    <span class="hint">Values are decoded first (URL and double URL encoding, HTML entities, SQL comments), so encoded attacks are caught too. In JSON bodies every value and key is checked.</span>
+                </fieldset>
+            </div>
+
+            <div class="inspector-section">
+                <h3 class="inspector-section-title">Limits</h3>
+                <div class="field-row">
+                    <div class="field">
+                        <label for="secMaxBody">Largest body (KB)</label>
+                        <input class="input input-sm" type="number" id="secMaxBody" min="0" max="102400" step="1" data-config="maxBodyKb" data-number>
+                    </div>
+                    <div class="field">
+                        <label for="secMaxDepth">JSON depth</label>
+                        <input class="input input-sm" type="number" id="secMaxDepth" min="0" max="1000" step="1" data-config="maxJsonDepth" data-number>
+                    </div>
+                    <div class="field">
+                        <label for="secMaxEntries">JSON entries</label>
+                        <input class="input input-sm" type="number" id="secMaxEntries" min="0" max="10000000" step="1" data-config="maxJsonEntries" data-number>
+                    </div>
+                </div>
+                <span class="hint">0 turns a limit off. Deep or huge JSON is a common way to exhaust a backend's memory.</span>
+            </div>
+
+            <div class="inspector-section">
+                <h3 class="inspector-section-title">Client addresses</h3>
+                <div class="field">
+                    <label for="secAllow">Allow only <span class="label-optional">(empty: every address)</span></label>
+                    <textarea class="textarea mono" id="secAllow" rows="2" spellcheck="false" placeholder="203.0.113.0/24, 2001:db8::/32" data-config="ipAllow" data-list></textarea>
+                </div>
+                <div class="field">
+                    <label for="secDeny">Deny</label>
+                    <textarea class="textarea mono" id="secDeny" rows="2" spellcheck="false" placeholder="198.51.100.7" data-config="ipDeny" data-list></textarea>
+                    <span class="hint">Addresses or ranges, separated by commas or lines. The address is the one that connected to the gateway; X-Forwarded-For is not trusted.</span>
+                </div>
+            </div>
+
+            <div class="inspector-section">
+                <h3 class="inspector-section-title">Brute force</h3>
+                <label class="checkbox-row"><input type="checkbox" id="secBrute" data-config="bruteForce"> Lock out callers after repeated failed attempts</label>
+                <div class="stack-sm" data-show-brute>
+                    <div class="field-row">
+                        <div class="field">
+                            <label for="secBruteKey">Count failures per</label>
+                            <select class="select select-sm" id="secBruteKey" data-config="bruteKey">
+                                <option value="ip">Client address</option>
+                                <option value="client">Application (client ID)</option>
+                                <option value="header">Request header</option>
+                                <option value="body">Body field</option>
+                            </select>
+                        </div>
+                        <div class="field" data-show-brute-name>
+                            <label for="secBruteName"><span data-brute-name-label>Name</span></label>
+                            <input class="input input-sm mono" type="text" id="secBruteName" maxlength="100" data-config="bruteKeyName">
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label for="secBruteStatuses">Answers that count as a failure</label>
+                        <input class="input input-sm mono" type="text" id="secBruteStatuses" placeholder="401, 403" data-config="bruteStatuses" data-list>
+                    </div>
+                    <div class="field-row">
+                        <div class="field">
+                            <label for="secBruteMax">Failures allowed</label>
+                            <input class="input input-sm" type="number" id="secBruteMax" min="1" max="1000" step="1" data-config="bruteMax" data-number>
+                        </div>
+                        <div class="field">
+                            <label for="secBruteWindow">Within (seconds)</label>
+                            <input class="input input-sm" type="number" id="secBruteWindow" min="1" max="86400" step="1" data-config="bruteWindow" data-number>
+                        </div>
+                        <div class="field">
+                            <label for="secBruteLockout">Lock out for (seconds)</label>
+                            <input class="input input-sm" type="number" id="secBruteLockout" min="1" max="604800" step="1" data-config="bruteLockout" data-number>
+                        </div>
+                    </div>
+                    <span class="hint">The answer the client finally gets is counted, so this works with a backend's login endpoint as well as with your own scripts. A success clears the count. Locked-out callers get 429 with Retry-After. Each gateway node counts on its own.</span>
+                </div>
+            </div>
+            <div class="field" data-next-field="next"><label>Next step</label></div>
+        </div>
+    </template>
+
+    <%# Examples for Gateway script steps. %>
+    <template id="example-header">module.exports = async function (callcontext) {
+  callcontext.headers['x-tenant'] = callcontext.consumer.application;
+  callcontext.headers['x-forwarded-path'] = callcontext.original.path;
+};
+</template>
+    <template id="example-body">module.exports = async function (callcontext) {
+  if (!callcontext.body) return;
+  const input = JSON.parse(callcontext.body);
+  callcontext.body = {
+    ...input,
+    requestedBy: callcontext.consumer.clientId,
+    receivedAt: new Date().toISOString(),
+  };
+};
+</template>
+    <template id="example-jwt">// Verifies a user token the caller sends in x-user-token and passes its subject on.
+module.exports = async function (callcontext) {
+  const token = callcontext.headers['x-user-token'];
+  if (!token) return callcontext.reply(401, { error: 'Send the user token in x-user-token' });
+  try {
+    const claims = await jwt.verify(token, 'replace-with-the-shared-secret', { issuer: 'https://login.example.com' });
+    callcontext.variables.userId = claims.sub;
+    callcontext.headers['x-user-id'] = claims.sub;
+  } catch (error) {
+    callcontext.reply(401, { error: 'The user token is not valid' });
+  }
+};
+</template>
+    <template id="example-ratelimit">// At most 20 calls per minute from one IP address, on top of the product's limit.
+module.exports = async function (callcontext) {
+  const result = await rateLimit.check(callcontext.original.remoteAddress, 20, 'minute');
+  if (!result.allowed) {
+    callcontext.reply(429, { error: 'Too many requests from your address' }, { 'retry-after': String(result.resetSeconds) });
+  }
+};
+</template>
+    <template id="example-http">// Looks the customer up in another service and adds it to the body.
+module.exports = async function (callcontext) {
+  const order = JSON.parse(callcontext.body || '{}');
+  const customer = await http.get('https://crm.internal.example.com/customers/' + querystring.escape(order.customerId || ''), {
+    headers: { accept: 'application/json' },
+    timeoutMs: 2000,
+  });
+  if (!customer.ok) return callcontext.reply(422, { error: 'Unknown customer' });
+  callcontext.body = { ...order, customer: customer.json };
+};
+</template>
+    <template id="example-response">// Place after an Invoke step: callcontext.response holds the backend's answer.
+module.exports = async function (callcontext) {
+  const { response } = callcontext;
+  if (!response) return;
+  response.headers['x-served-by'] = 'gateway';
+  if (response.status >= 500) {
+    response.body = { error: 'The service is unavailable, try again later', traceId: callcontext.traceId };
+  }
+};
+</template>
+    <template id="example-signature">// HMAC signature the backend can verify with a shared secret.
+module.exports = async function (callcontext) {
+  const timestamp = new Date().toISOString();
+  const payload = callcontext.method + '\n' + callcontext.path + '\n' + timestamp + '\n' + await hash.sha256(callcontext.body);
+  callcontext.headers['x-timestamp'] = timestamp;
+  callcontext.headers['x-signature'] = await crypto.hmac('sha256', 'replace-with-shared-secret', payload, 'base64');
+};
+</template>
+    <template id="example-block">// Answers from the gateway itself, without calling any backend.
+module.exports = async function (callcontext) {
+  callcontext.reply(200, {
+    status: 'ok',
+    id: await crypto.randomUUID(),
+    receivedAt: new Date().toISOString(),
+  });
+};
+</template>
+
+    <script src="/js/ui.js"></script>
+    <script src="/js/flow.js"></script>
+    <script src="/js/flow-editor.js"></script>
+    <script src="/js/policy-detail.js"></script>
+</body>
+</html>

@@ -1,0 +1,68 @@
+<%
+// Applications table for admin pages. Expects `applications`, `tableId` and `showOwner`;
+// `compact` drops the Created column for narrow layouts.
+const showCreated = typeof compact === 'undefined' || !compact;
+%>
+<div class="table-wrap">
+    <table class="table" id="<%= tableId %>">
+        <thead>
+            <tr>
+                <th>Application</th>
+                <% if (showOwner) { %><th>Owner</th><% } %>
+                <th>Client ID</th>
+                <th class="hide-sm">Redirect URIs</th>
+                <% if (showCreated) { %><th class="hide-sm">Created</th><% } %>
+                <th><span class="sr-only">Actions</span></th>
+            </tr>
+        </thead>
+        <tbody>
+            <% applications.forEach((application) => { %>
+                <tr data-search="<%= [application.name, application.clientId, application.owner && application.owner.name, application.owner && application.owner.email].filter(Boolean).join(' ').toLowerCase() %>">
+                    <td>
+                        <div class="user-cell">
+                            <span class="app-avatar"><%= initials(application.name) %></span>
+                            <div>
+                                <a class="cell-primary" href="/developer/admin/applications/<%= application.id %>"><%= application.name %></a>
+                                <div class="cell-secondary"><%= application.description || 'No description' %></div>
+                            </div>
+                        </div>
+                    </td>
+                    <% if (showOwner) { %>
+                        <td>
+                            <% if (application.owner) { %>
+                                <a class="user-cell" href="/developer/admin/users/<%= application.owner.id %>">
+                                    <span class="avatar"><%= initials(application.owner.name) %></span>
+                                    <div>
+                                        <div class="cell-primary"><%= application.owner.name %></div>
+                                        <div class="cell-secondary"><%= application.owner.email %></div>
+                                    </div>
+                                </a>
+                            <% } else { %>
+                                <span class="badge badge-warning">Owner deleted</span>
+                            <% } %>
+                        </td>
+                    <% } %>
+                    <td>
+                        <span class="code-pill">
+                            <code><%= application.clientId %></code>
+                            <button type="button" class="copy-btn" data-copy="<%= application.clientId %>" aria-label="Copy client ID"><%- include('icon.html', { name: 'copy' }) %></button>
+                        </span>
+                    </td>
+                    <td class="hide-sm"><span class="badge"><%= application.redirectUris.length %> URI<%= application.redirectUris.length === 1 ? '' : 's' %></span></td>
+                    <% if (showCreated) { %><td class="hide-sm muted nowrap"><%= formatDate(application.createdAt) %></td><% } %>
+                    <td class="actions-cell">
+                        <a href="/developer/admin/applications/<%= application.id %>" class="btn btn-secondary btn-sm">Manage</a>
+                        <button type="button" class="btn btn-danger-ghost btn-sm btn-icon"
+                            data-delete-application="<%= application.id %>"
+                            data-api-url="/api/admin/applications/<%= application.id %>"
+                            data-name="<%= application.name %>"
+                            aria-label="Delete <%= application.name %>" title="Delete">
+                            <%- include('icon.html', { name: 'trash' }) %>
+                        </button>
+                    </td>
+                </tr>
+            <% }); %>
+        </tbody>
+    </table>
+    <p class="no-results" data-filter-empty="#<%= tableId %>" hidden>No applications match your search.</p>
+</div>

@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <%- include('partials/head.html', { title: gateway.name }) %>
+</head>
+<body>
+    <%- include('partials/app-nav.html', { active: 'gateways' }) %>
+    <%
+    const state = gatewayState(gateway.state);
+    const gatewayUrl = '/api/org/gateways/' + gateway.id;
+    const obs = gateway.observability;
+    const adminEnabled = obs.adminUi.enabled !== false;
+    const pullMode = link.enabled && link.url;
+    // Commands, the credentials file name and the suggested next node come from services/gatewayNodes.js.
+    const { credentialsFile, dockerLinkUrl, firstCommands: runCommands, nodeCommands, nextNode } = nodeTools;
+    const nodeNames = new Map(gateway.nodes.map((node) => [node.id, node.name]));
+    const clusterHandler = gateway.handlers.find((handler) => !handler.nodeId);
+    const examplePort = clusterHandler ? clusterHandler.port : 9445;
+    const setupIncomplete = Boolean(gateway.setup.next);
+    // The commands sit in the setup checklist until a node runs, then in "Add a node".
+    const nodeRunning = gateway.setup.steps.find((step) => step.key === 'node').done;
+    const activeCredentials = gateway.credentials.filter((credential) => !credential.revokedAt);
+    const nodeState = (node) => {
+        if (node.mode === 'pull') {
+            if (!node.lastSeenAt) return { label: 'Not started yet', className: 'badge-warning' };
+            if (!node.configVersion) return { label: 'Waiting for first pull', className: '' };
+            return node.configVersion === gateway.version ? { label: 'In sync', className: 'badge-success' } : { label: 'Pulling changes', className: 'badge-warning' };
+        }
+        return nodeStatus(node.lastPushStatus);
+    };
+    %>
+
+    <main id="main" class="page">
+        <nav class="breadcrumb" aria-label="Breadcrumb">
+            <a href="/developer/gateways">Gateways</a>
+            <%- include('partials/icon.html', { name: 'chevron-right' }) %>
+            <span aria-current="page"><%= gateway.name %></span>
+        </nav>
+        <div class="page-header">
+            <div class="user-cell">
+                <span class="app-avatar app-avatar-lg"><%- include('partials/icon.html', { name: 'server', className: 'icon-lg' }) %></span>
+                <div>
+                    <h1><%= gateway.name %></h1>
+                    <div class="badges">
+                        <span class="badge badge-dot <%= state.className %>" data-gateway-state><%= state.label %></span>
+                        <span class="badge badge-dot <%= gateway.running ? 'badge-success' : '' %>"><%= gateway.running ? 'Running' : 'Not running' %></span>
+                        <% if (gateway.catalog) { %>
+                            <a class="badge" href="/developer/catalogs/<%= gateway.catalog.id %>"><%- include('partials/icon.html', { name: 'book', className: 'icon-sm' }) %><%= gateway.catalog.name %></a>
+                        <% } else { %>
+                            <a class="badge badge-warning" href="<%= setupIncomplete ? '#setup' : '#settings' %>">Not attached to a catalog</a>
+                        <% } %>
+                        <span class="badge mono-sm"><%= gateway.publicUrl %></span>
+                        <% if (gateway.autoPush) { %><span class="badge badge-success">Auto-push on</span><% } %>
+                        <% if (gateway.lastPushedAt) { %><span class="badge">Last push <%= formatDate(gateway.lastPushedAt) %></span><% } %>
+                    </div>
+                </div>
+            </div>
+            <div class="page-actions">
+                <a class="btn btn-secondary" href="/developer/gateways/<%= gateway.id %>/requests">
+                    <%- include('partials/icon.html', { name: 'terminal' }) %>Live requests
+                </a>
+                <button type="button" class="btn btn-secondary" id="checkStatus" data-gateway-url="<%= gatewayUrl %>" <%= gateway.nodes.some((node) => node.url) ? '' : 'disabled' %>>
+                    <%- include('partials/icon.html', { name: 'activity' }) %>Check nodes
+                </button>
+                <button type="button" class="btn btn-primary" id="pushConfig" data-gateway-url="<%= gatewayUrl %>">
+                    <%- include('partials/icon.html', { name: 'upload' }) %>Push configuration
+                </button>
+            </div>
+        </div>
+
+        <% if (setupIncomplete) { %>
+            <%- include('partials/gateway-setup.html', { gateway, gatewayUrl, catalogs, runCommands, credentialsFile, pullMode, dockerLinkUrl }) %>
+        <% } %>
+
+        <% if (gateway.problems.length) { %>
+            <div class="alert alert-warning page-alert" role="status">
+                <%- include('partials/icon.html', { name: 'alert' }) %>
+                <div>
+                    <strong>Fix these before pushing</strong>
+                    <ul class="problem-list">
+                        <% gateway.problemDetails.forEach((problem) => { %><li><%= problem.message %><% if (problem.href) { %> <a href="<%= problem.href %>"><%= problem.label %></a><% } %></li><% }); %>
+                    </ul>
+                </div>
+            </div>
+        <% } %>
+
+        <% if (gateway.warnings.length) { %>
+            <div class="alert alert-warning page-alert" role="status">
+                <%- include('partials/icon.html', { name: 'clock' }) %>
+                <div>
+                    <strong>Certificates</strong>
+                    <ul class="problem-list">
+                        <% gateway.warnings.forEach((warning) => { %><li><%= warning %></li><% }); %>
+                    </ul>
+                    <a href="#credentials">Manage credentials</a>
+                </div>
+            </div>
+        <% } %>
+
+        <section class="card push-result" id="push-result" hidden aria-live="polite">
+            <div class="card-header">
+                <div>
+                    <h2 data-result-title>Push result</h2>
+                    <p data-result-summary></p>
+                </div>
+                <button type="button" class="btn btn-ghost btn-sm" data-dismiss-result>Close</button>
+            </div>
+            <div class="table-wrap"><table class="table"><tbody data-result-rows></tbody></table></div>
+        </section>
+
+        <section class="stats" aria-label="What this gateway serves">
+            <div class="card stat">
+                <span class="stat-icon"><%- include('partials/icon.html', { name: 'package' }) %></span>
+                <div><div class="stat-label">Products</div><div class="stat-value"><%= gateway.summary.products %></div></div>
+            </div>
+            <div class="card stat">
+                <span class="stat-icon is-indigo"><%- include('partials/icon.html', { name: 'code' }) %></span>
+                <div><div class="stat-label">APIs</div><div class="stat-value"><%= gateway.summary.apis %></div></div>
+            </div>
+            <div class="card stat">
+                <span class="stat-icon is-success"><%- include('partials/icon.html', { name: 'grid' }) %></span>
+                <div><div class="stat-label">Approved applications</div><div class="stat-value"><%= gateway.summary.subscriptions %></div></div>
+            </div>
+            <div class="card stat">
+                <span class="stat-icon is-warning"><%- include('partials/icon.html', { name: 'file-code' }) %></span>
+                <div><div class="stat-label">Configuration</div><div class="stat-value stat-value-sm"><a href="<%= gatewayUrl %>/config" target="_blank" rel="noopener"><code><%= gateway.version %></code></a></div></div>
+            </div>
+        </section>
+
+        <%- include('partials/usage-card.html', { usage, usageDescription: 'Requests served by every node of this gateway', showApplications: true }) %>
+
+        <div class="grid-2">
+            <div class="stack">
+                <section class="card" id="nodes">
+                    <div class="card-header">
+                        <div>
+                            <h2>Nodes</h2>
+                            <p>Every node serves the same APIs. Nodes can share one Docker host, where each gets its own host ports, or run on separate servers. Rate limits are split between the nodes, or shared exactly when they use Redis (GATEWAY_REDIS_URL).</p>
+                        </div>
+                    </div>
+                    <% if (gateway.nodes.length) { %>
+                        <ul class="node-list">
+                            <% gateway.nodes.forEach((node) => {
+                                const status = nodeState(node);
+                                const where = gateway.addresses.nodes[node.id];
+                                const commands = nodeCommands[node.id];
+                                const notStarted = node.mode === 'pull' && !node.lastSeenAt; %>
+                                <li class="node-item" id="node-<%= node.id %>">
+                                    <div class="node-head">
+                                        <div class="node-main">
+                                            <div class="cell-primary"><%= node.name %> <span class="badge mode-badge"><%= node.mode === 'pull' ? 'pull' : 'push' %></span></div>
+                                            <div class="cell-secondary"><%= where.host %><%= where.portOffset ? ' · host ports +' + where.portOffset : '' %><%= node.url ? ' · ' + node.url : '' %></div>
+                                            <% if (node.certificate && node.certificate.revoked) { %><div class="node-error">Uses a revoked certificate. It can no longer reach the console.</div><% } %>
+                                            <% if (node.lastError) { %><div class="node-error"><%= node.lastError %></div><% } %>
+                                        </div>
+                                        <div class="node-state">
+                                            <span class="badge badge-dot <%= status.className %>"><%= status.label %></span>
+                                            <% if (node.lastSeenAt) { %><div class="cell-secondary">Seen <%= formatDate(node.lastSeenAt) %></div>
+                                            <% } else if (node.lastPushAt) { %><div class="cell-secondary">Pushed <%= formatDate(node.lastPushAt) %></div><% } %>
+                                            <% if (node.configVersion) { %><div class="cell-secondary hide-sm">Config <code><%= node.configVersion %></code><%= node.softwareVersion ? ' · gateway ' + node.softwareVersion : '' %></div><% } %>
+                                        </div>
+                                        <button type="button" class="btn btn-danger-ghost btn-sm btn-icon"
+                                            data-action="<%= gatewayUrl %>/nodes/<%= node.id %>" data-method="DELETE"
+                                            data-confirm-title="Remove <%= node.name %>?"
+                                            data-confirm-message="<%= node.mode === 'pull' ? 'A pull node that is still running registers itself again on its next heartbeat. Stop its container, or revoke its certificate to keep it out.' : 'Management stops pushing to this node. The node keeps serving its last configuration until you stop it.' %> Handlers that run only on this node are removed too."
+                                            data-confirm-label="Remove node" data-danger
+                                            data-success="<%= node.name %> was removed"
+                                            aria-label="Remove <%= node.name %>" title="Remove">
+                                            <%- include('partials/icon.html', { name: 'trash' }) %>
+                                        </button>
+                                    </div>
+                                    <details class="node-more" data-node-details="<%= node.id %>" <%= notStarted ? 'open' : '' %>>
+                                        <summary><%= notStarted ? 'Start this node' : 'Start command and placement' %></summary>
+                                        <div class="node-more-body">
+                                            <% if (notStarted) { %>
+                                                <p class="hint">Run the command for your system in the folder that holds <code><%= credentialsFile %></code>. The node connects to the console by itself and this entry turns to "In sync".</p>
+                                            <% } else { %>
+                                                <p class="hint">To recreate this node, stop and remove its container first (<code>docker rm -f <%= node.name %></code>), then run the command again.</p>
+                                            <% } %>
+                                            <%- include('partials/gateway-run-commands.html', { commands, credentialsFile }) %>
+                                            <form class="node-placement" data-node-form="<%= gatewayUrl %>/nodes/<%= node.id %>" data-node-name="<%= node.name %>">
+                                                <div class="field-row">
+                                                    <div class="field">
+                                                        <label for="node-host-<%= node.id %>">Host</label>
+                                                        <input class="input input-sm mono" type="text" id="node-host-<%= node.id %>" name="host" value="<%= node.host || '' %>" placeholder="<%= where.host %>" maxlength="253" aria-describedby="node-host-hint-<%= node.id %>">
+                                                    </div>
+                                                    <div class="field field-narrow">
+                                                        <label for="node-offset-<%= node.id %>">Port offset</label>
+                                                        <input class="input input-sm" type="number" id="node-offset-<%= node.id %>" name="portOffset" min="0" max="1000" value="<%= node.portOffset || 0 %>">
+                                                    </div>
+                                                    <button type="submit" class="btn btn-secondary btn-sm">Save placement</button>
+                                                </div>
+                                                <span class="hint" id="node-host-hint-<%= node.id %>">Where clients reach the node, used for its addresses. The offset is added to every port the container publishes, so nodes on one Docker host don't collide. Changing it changes the command: run it again.</span>
+                                                <div class="alert alert-danger" role="alert" data-node-alert hidden>
+                                                    <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </details>
+                                </li>
+                            <% }); %>
+                        </ul>
+                    <% } else { %>
+                        <div class="card-body"><p class="muted">No nodes yet. Start one with step 3 of <a href="#setup">Set up</a>. <%= pullMode ? 'It registers itself here.' : 'Then add its management address here.' %></p></div>
+                    <% } %>
+                </section>
+
+                <section class="card" id="addresses">
+                    <div class="card-header">
+                        <div>
+                            <h2>Addresses</h2>
+                            <p>Where clients and admins reach this gateway. Push the configuration after changing handlers.</p>
+                        </div>
+                    </div>
+                    <div class="card-body address-groups">
+                        <div class="address-group">
+                            <h3 class="subsection-title">Cluster</h3>
+                            <ul class="address-list">
+                                <li>
+                                    <span class="address-label">Public URL</span>
+                                    <span class="address-value"><code><%= gateway.addresses.cluster.url %></code><button type="button" class="copy-btn" data-copy="<%= gateway.addresses.cluster.url %>" aria-label="Copy the public URL"><%- include('partials/icon.html', { name: 'copy' }) %></button></span>
+                                    <span class="hint">The load balancer in front of the nodes, or the only node. Change it under Settings.</span>
+                                </li>
+                                <% gateway.addresses.cluster.apis.forEach((entry) => { %>
+                                    <li>
+                                        <span class="address-label"><%= entry.name %></span>
+                                        <span class="address-value"><code><%= entry.url %></code><button type="button" class="copy-btn" data-copy="<%= entry.url %>" aria-label="Copy the URL of <%= entry.name %>"><%- include('partials/icon.html', { name: 'copy' }) %></button></span>
+                                    </li>
+                                <% }); %>
+                                <% if (!gateway.addresses.cluster.apis.length) { %><li class="muted">No APIs yet: <%= gateway.catalog ? 'publish a product of ' + gateway.catalog.name + ' with APIs in it.' : 'attach the gateway to a catalog.' %></li><% } %>
+                            </ul>
+                        </div>
+                        <% gateway.nodes.forEach((node) => { const where = gateway.addresses.nodes[node.id]; %>
+                            <div class="address-group">
+                                <h3 class="subsection-title"><%= node.name %></h3>
+                                <ul class="address-list">
+                                    <% where.traffic.forEach((entry) => { %>
+                                        <li>
+                                            <span class="address-label">API traffic · <%= entry.handler %><%= entry.scope === 'node' ? ' (this node only)' : '' %></span>
+                                            <span class="address-value"><code><%= entry.url %></code><button type="button" class="copy-btn" data-copy="<%= entry.url %>" aria-label="Copy <%= entry.url %>"><%- include('partials/icon.html', { name: 'copy' }) %></button></span>
+                                            <% entry.apis.forEach((api) => { %><span class="address-sub mono-sm"><%= api.url %></span><% }); %>
+                                        </li>
+                                    <% }); %>
+                                    <% if (!where.traffic.length) { %><li class="muted">No connection handler runs on this node.</li><% } %>
+                                    <% if (where.admin) { %>
+                                        <li>
+                                            <span class="address-label">Admin UI</span>
+                                            <span class="address-value"><a class="mono-sm" href="<%= where.admin %>" target="_blank" rel="noopener"><%= where.admin %></a><button type="button" class="copy-btn" data-copy="<%= where.admin %>" aria-label="Copy the admin UI address of <%= node.name %>"><%- include('partials/icon.html', { name: 'copy' }) %></button></span>
+                                            <span class="hint">Sign in with your console account. Its certificate comes from the management CA.</span>
+                                        </li>
+                                    <% } %>
+                                    <% if (where.management) { %>
+                                        <li>
+                                            <span class="address-label">Management (push)</span>
+                                            <span class="address-value"><code><%= where.management %></code></span>
+                                        </li>
+                                    <% } %>
+                                </ul>
+                            </div>
+                        <% }); %>
+                    </div>
+                </section>
+
+                <section class="card" id="handlers">
+                    <div class="card-header">
+                        <div>
+                            <h2>Connection handlers</h2>
+                            <p>Ports that accept API traffic. A handler runs on every node of the cluster, or on one node only. A port policy runs first for every request on the port, then the API's own policy.</p>
+                        </div>
+                    </div>
+                    <% if (gateway.handlers.length) { %>
+                        <ul class="operation-list">
+                            <% gateway.handlers.forEach((handler) => { %>
+                                <li class="operation">
+                                    <span class="method <%= handler.protocol === 'https' ? 'method-get' : '' %>"><%= handler.protocol %></span>
+                                    <div class="operation-main">
+                                        <span class="cell-primary"><%= handler.name %> <span class="badge mono-sm">:<%= handler.port %></span> <span class="badge"><%= handler.nodeId ? 'Only ' + (nodeNames.get(handler.nodeId) || 'a removed node') : 'Every node' %></span></span>
+                                        <% if (handler.certificate) { %>
+                                            <span class="operation-summary"><%= handler.tlsMode === 'generated' ? 'Certificate from the management CA' : 'Your certificate' %> · <%= handler.certificate.subjectAltName || handler.certificate.subject %> · expires <%= formatDate(handler.certificate.validTo) %></span>
+                                        <% } else { %>
+                                            <span class="operation-summary">Plain HTTP. Put TLS in front of it, or use HTTPS.</span>
+                                        <% } %>
+                                    </div>
+                                    <% if (gateway.nodes.length) { %>
+                                    <div class="inline-select">
+                                        <label class="sr-only" for="handler-node-<%= handler.id %>">Where <%= handler.name %> runs</label>
+                                        <select class="select select-sm" id="handler-node-<%= handler.id %>" data-handler-node="<%= gatewayUrl %>/handlers/<%= handler.id %>" data-handler-name="<%= handler.name %>">
+                                            <option value="">Every node</option>
+                                            <% gateway.nodes.forEach((node) => { %><option value="<%= node.id %>" <%= handler.nodeId === node.id ? 'selected' : '' %>>Only <%= node.name %></option><% }); %>
+                                        </select>
+                                    </div>
+                                    <% } %>
+                                    <div class="inline-select">
+                                        <label class="sr-only" for="handler-policy-<%= handler.id %>">Port policy for <%= handler.name %></label>
+                                        <select class="select select-sm" id="handler-policy-<%= handler.id %>" data-handler-policy="<%= gatewayUrl %>/handlers/<%= handler.id %>" data-handler-name="<%= handler.name %>">
+                                            <option value="">No port policy</option>
+                                            <% policies.forEach((policy) => { %><option value="<%= policy.id %>" <%= handler.policy && handler.policy.id === policy.id ? 'selected' : '' %>><%= policy.name %></option><% }); %>
+                                        </select>
+                                    </div>
+                                    <button type="button" class="btn btn-danger-ghost btn-sm btn-icon"
+                                        data-action="<%= gatewayUrl %>/handlers/<%= handler.id %>" data-method="DELETE"
+                                        data-confirm-title="Remove <%= handler.name %>?"
+                                        data-confirm-message="Port <%= handler.port %> closes on <%= handler.nodeId ? (nodeNames.get(handler.nodeId) || 'its node') : 'every node' %> after the next push."
+                                        data-confirm-label="Remove handler" data-danger
+                                        data-success="<%= handler.name %> was removed"
+                                        aria-label="Remove <%= handler.name %>" title="Remove">
+                                        <%- include('partials/icon.html', { name: 'trash' }) %>
+                                    </button>
+                                </li>
+                            <% }); %>
+                        </ul>
+                    <% } %>
+                    <form id="handlerForm" class="card-footer-form" data-gateway-url="<%= gatewayUrl %>">
+                        <span class="label">Add connection handler</span>
+                        <div class="field-row">
+                            <div class="field">
+                                <label for="handlerName">Name</label>
+                                <input class="input input-sm" type="text" id="handlerName" name="name" placeholder="Public HTTPS" maxlength="255" required>
+                            </div>
+                            <div class="field field-narrow">
+                                <label for="handlerPort">Port</label>
+                                <input class="input input-sm" type="number" id="handlerPort" name="port" min="1" max="65535" placeholder="8443" required>
+                            </div>
+                            <div class="field field-narrow">
+                                <label for="handlerProtocol">Protocol</label>
+                                <select class="select select-sm" id="handlerProtocol" name="protocol">
+                                    <option value="https">HTTPS</option>
+                                    <option value="http">HTTP</option>
+                                </select>
+                            </div>
+                        </div>
+                        <% if (gateway.nodes.length) { %>
+                        <div class="field">
+                            <label for="handlerNode">Runs on</label>
+                            <select class="select select-sm" id="handlerNode" name="nodeId" aria-describedby="handler-node-hint">
+                                <option value="">Every node (the cluster)</option>
+                                <% gateway.nodes.forEach((node) => { %><option value="<%= node.id %>">Only <%= node.name %></option><% }); %>
+                            </select>
+                            <span class="hint" id="handler-node-hint">After adding a port, run the node's command again so Docker publishes it.</span>
+                        </div>
+                        <% } %>
+                        <div class="field">
+                            <label for="handlerPolicy">Port policy <span class="label-optional">(optional)</span></label>
+                            <select class="select select-sm" id="handlerPolicy" name="policyId">
+                                <option value="">None</option>
+                                <% policies.forEach((policy) => { %><option value="<%= policy.id %>"><%= policy.name %></option><% }); %>
+                            </select>
+                        </div>
+                        <fieldset class="choice-cards" data-tls-fields>
+                            <legend class="label">Certificate</legend>
+                            <label class="choice-card">
+                                <input type="radio" name="tlsMode" value="generated" checked>
+                                <span><strong>Issue one from the management CA</strong><span class="hint">For <%= new URL(gateway.publicUrl).hostname %> and the hosts of its nodes. Clients must trust the CA.</span></span>
+                            </label>
+                            <label class="choice-card">
+                                <input type="radio" name="tlsMode" value="custom">
+                                <span><strong>Use my certificate</strong><span class="hint">PEM certificate chain and private key, e.g. from your public CA.</span></span>
+                            </label>
+                        </fieldset>
+                        <div class="field-row" data-custom-tls hidden>
+                            <div class="field">
+                                <label for="certificatePem">Certificate (PEM)</label>
+                                <textarea class="textarea mono" id="certificatePem" name="certificatePem" rows="4" spellcheck="false" placeholder="-----BEGIN CERTIFICATE-----"></textarea>
+                            </div>
+                            <div class="field">
+                                <label for="privateKeyPem">Private key (PEM)</label>
+                                <textarea class="textarea mono" id="privateKeyPem" name="privateKeyPem" rows="4" spellcheck="false" placeholder="-----BEGIN PRIVATE KEY-----"></textarea>
+                            </div>
+                        </div>
+                        <div id="handler-alert" class="alert alert-danger" role="alert" hidden>
+                            <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-secondary btn-sm"><%- include('partials/icon.html', { name: 'plus' }) %>Add handler</button>
+                        </div>
+                    </form>
+                </section>
+
+                <section class="card" id="node-status" hidden aria-live="polite">
+                    <div class="card-header">
+                        <div>
+                            <h2>Node status</h2>
+                            <p>Reported by each push node just now.</p>
+                        </div>
+                    </div>
+                    <div class="table-wrap"><table class="table"><tbody data-status-rows></tbody></table></div>
+                </section>
+
+                <section class="card" id="observability">
+                    <div class="card-header">
+                        <div>
+                            <h2>Observability</h2>
+                            <p>Built into every node: Prometheus metrics, W3C trace context, a live request log and the gateway admin UI. Off-load ships each request record to your collector.</p>
+                        </div>
+                    </div>
+                    <form id="observabilityForm" class="card-body form" data-gateway-url="<%= gatewayUrl %>">
+                        <div class="switch-list">
+                            <label class="switch-row" for="requestLogEnabled">
+                                <input class="switch" type="checkbox" id="requestLogEnabled" name="requestLogEnabled" <%= obs.requestLog.enabled ? 'checked' : '' %>>
+                                <span><strong>Live request log</strong><span class="hint">Keeps the latest requests in memory on each node, for "Live requests" and the admin UI. Headers and bodies are never stored.</span></span>
+                            </label>
+                            <label class="switch-row" for="metricsEnabled">
+                                <input class="switch" type="checkbox" id="metricsEnabled" name="metricsEnabled" <%= obs.metrics.enabled ? 'checked' : '' %>>
+                                <span><strong>Prometheus metrics</strong><span class="hint">Served at <code>http://&lt;node&gt;:9080/metrics</code>.</span></span>
+                            </label>
+                            <label class="switch-row" for="adminUiEnabled">
+                                <input class="switch" type="checkbox" id="adminUiEnabled" name="adminUiEnabled" <%= adminEnabled ? 'checked' : '' %>>
+                                <span><strong>Gateway admin UI</strong><span class="hint">At <code>https://&lt;node&gt;:9445</code>. Org admins sign in with their console email and password; the node checks them with the console over mTLS.</span></span>
+                            </label>
+                        </div>
+                        <div class="field field-narrow">
+                            <label for="requestLogSize">Requests kept per node</label>
+                            <input class="input input-sm" type="number" id="requestLogSize" name="requestLogSize" min="10" max="10000" value="<%= obs.requestLog.size %>">
+                        </div>
+
+                        <h3 class="subsection-title">Off-load</h3>
+                        <div class="field">
+                            <label for="offloadType">Send request records to</label>
+                            <select class="select" id="offloadType" name="offloadType">
+                                <option value="none" <%= obs.offload.type === 'none' ? 'selected' : '' %>>Nowhere (keep them on the node)</option>
+                                <option value="http" <%= obs.offload.type === 'http' ? 'selected' : '' %>>HTTP endpoint (JSON array per batch)</option>
+                                <option value="otlp" <%= obs.offload.type === 'otlp' ? 'selected' : '' %>>OpenTelemetry collector (OTLP/HTTP logs)</option>
+                            </select>
+                        </div>
+                        <div data-offload-fields class="stack">
+                            <div class="field">
+                                <label for="offloadUrl">URL</label>
+                                <input class="input mono" type="url" id="offloadUrl" name="offloadUrl" value="<%= obs.offload.url || '' %>" placeholder="https://otel-collector.example.com:4318/v1/logs">
+                            </div>
+                            <div class="field-row">
+                                <div class="field">
+                                    <label for="offloadHeaderName">Auth header <span class="label-optional">(optional)</span></label>
+                                    <input class="input input-sm mono" type="text" id="offloadHeaderName" name="offloadHeaderName" value="<%= obs.offload.headerName || '' %>" placeholder="authorization" maxlength="100">
+                                </div>
+                                <div class="field">
+                                    <label for="offloadHeaderValue">Header value</label>
+                                    <input class="input input-sm" type="password" id="offloadHeaderValue" name="offloadHeaderValue" autocomplete="off" placeholder="<%= obs.offload.hasHeaderValue ? 'Saved. Leave empty to keep it.' : 'Bearer …' %>">
+                                </div>
+                            </div>
+                            <div class="field-row">
+                                <div class="field field-narrow">
+                                    <label for="offloadBatchSize">Batch size</label>
+                                    <input class="input input-sm" type="number" id="offloadBatchSize" name="offloadBatchSize" min="1" max="5000" value="<%= obs.offload.batchSize %>">
+                                </div>
+                                <div class="field field-narrow">
+                                    <label for="offloadFlushIntervalMs">Flush every (ms)</label>
+                                    <input class="input input-sm" type="number" id="offloadFlushIntervalMs" name="offloadFlushIntervalMs" min="500" max="300000" value="<%= obs.offload.flushIntervalMs %>">
+                                </div>
+                                <div class="field field-narrow">
+                                    <label for="offloadSampleRate">Sample rate</label>
+                                    <input class="input input-sm" type="number" id="offloadSampleRate" name="offloadSampleRate" min="0.001" max="1" step="0.001" value="<%= obs.offload.sampleRate %>">
+                                </div>
+                            </div>
+                            <p class="hint">Records are batched, retried with backoff and dropped (and counted in metrics) if the collector stays down, so API traffic is never slowed by it.</p>
+                        </div>
+                        <div id="observability-alert" class="alert alert-danger" role="alert" hidden>
+                            <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-secondary">Save observability</button>
+                        </div>
+                    </form>
+                </section>
+            </div>
+
+            <div class="stack">
+                <% if (nodeRunning || gateway.nodes.length) { %>
+                <section class="card" id="run">
+                    <div class="card-header">
+                        <div>
+                            <h2>Add a node</h2>
+                            <p>Add the node here first. You then get the command that starts it, with its own name, container, data volume and host ports. All nodes use the same credentials file, <code><%= credentialsFile %></code>.</p>
+                        </div>
+                        <a class="btn btn-secondary btn-sm" href="<%= gatewayUrl %>/credentials"><%- include('partials/icon.html', { name: 'download' }) %>Credentials</a>
+                    </div>
+                    <% if (pullMode) { %>
+                        <form id="addNodeForm" class="card-body form" data-gateway-url="<%= gatewayUrl %>" data-same-host="<%= nextNode.sameHost %>">
+                            <div class="field">
+                                <label for="newNodeName">Node name</label>
+                                <input class="input input-sm mono" type="text" id="newNodeName" name="name" value="<%= nextNode.name %>" maxlength="100" pattern="[A-Za-z0-9._:@\-]+" required aria-describedby="new-node-name-hint">
+                                <span class="hint" id="new-node-name-hint">Also the container name. Letters, digits, ".", "-", "_", ":" or "@".</span>
+                            </div>
+                            <fieldset class="choice-cards">
+                                <legend class="label">Where it runs</legend>
+                                <label class="choice-card">
+                                    <input type="radio" name="placement" value="same" checked <%= nextNode.sameHostOffset === null ? 'disabled' : '' %>>
+                                    <span><strong>On the same Docker host</strong><span class="hint"><%= nextNode.sameHost %><% if (nextNode.sameHostOffset) { %>, with every host port moved up by <%= nextNode.sameHostOffset %> (for example <%= examplePort %> becomes <%= examplePort + nextNode.sameHostOffset %>) so it doesn't collide with the nodes already there<% } else if (nextNode.sameHostOffset === 0) { %>, on the usual ports<% } else { %>: no free ports are left<% } %>.</span></span>
+                                </label>
+                                <label class="choice-card">
+                                    <input type="radio" name="placement" value="other">
+                                    <span><strong>On another server</strong><span class="hint">Its own machine or VM, on the usual ports. Put a load balancer in front of the nodes.</span></span>
+                                </label>
+                            </fieldset>
+                            <div class="field" data-other-host hidden>
+                                <label for="newNodeHost">Server address</label>
+                                <input class="input input-sm mono" type="text" id="newNodeHost" name="host" maxlength="253" placeholder="10.0.0.6 or gw2.example.com">
+                                <span class="hint">Host name or IP address where clients reach the server. It must reach the console at <code><%= link.url %></code>.</span>
+                            </div>
+                            <div id="add-node-alert" class="alert alert-danger" role="alert" hidden>
+                                <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                            </div>
+                            <div class="form-actions">
+                                <button type="submit" class="btn btn-primary btn-sm"><%- include('partials/icon.html', { name: 'plus' }) %>Add node and show its command</button>
+                            </div>
+                        </form>
+                    <% } %>
+                    <details class="card-footer-form node-push" <%= pullMode ? '' : 'open' %>>
+                        <summary class="label">Add a node that is already running, by its management address (push)</summary>
+                        <form id="nodeForm" data-gateway-url="<%= gatewayUrl %>">
+                            <p class="hint">For a node started without <code>GATEWAY_MANAGEMENT_URL</code> that publishes port 9443. The console sends it the configuration when you push.</p>
+                            <div class="field-row">
+                                <div class="field field-narrow">
+                                    <label for="nodeName">Node name</label>
+                                    <input class="input input-sm" type="text" id="nodeName" name="name" placeholder="node-1" maxlength="100" required>
+                                </div>
+                                <div class="field">
+                                    <label for="nodeUrl">Management address</label>
+                                    <input class="input input-sm mono" type="url" id="nodeUrl" name="url" placeholder="https://10.0.0.5:9443" required>
+                                </div>
+                                <button type="submit" class="btn btn-secondary btn-sm"><%- include('partials/icon.html', { name: 'plus' }) %>Add</button>
+                            </div>
+                            <div id="node-alert" class="alert alert-danger" role="alert" hidden>
+                                <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                            </div>
+                        </form>
+                    </details>
+                </section>
+                <% } %>
+
+                <section class="card" id="credentials">
+                    <div class="card-header">
+                        <div>
+                            <h2>Credentials</h2>
+                            <p>Certificates issued to this gateway. Renewing issues a new one that running nodes fetch over the link and switch to without a restart.</p>
+                        </div>
+                        <button type="button" class="btn btn-secondary btn-sm" id="renewCredentials" data-gateway-url="<%= gatewayUrl %>" <%= activeCredentials.length ? '' : 'disabled' %>>
+                            <%- include('partials/icon.html', { name: 'refresh' }) %>Renew
+                        </button>
+                    </div>
+                    <% if (gateway.credentials.length) { %>
+                        <div class="table-wrap">
+                            <table class="table">
+                                <thead><tr><th>Certificate</th><th><span class="sr-only">Actions</span></th></tr></thead>
+                                <tbody>
+                                    <% gateway.credentials.forEach((credential) => { %>
+                                        <tr class="<%= credential.revokedAt ? 'credential-revoked' : '' %>">
+                                            <td>
+                                                <div class="cell-primary mono-sm" title="<%= credential.fingerprint %>"><%= credential.fingerprint.slice(0, 17) %>…</div>
+                                                <div class="cell-secondary">
+                                                    <%= credential.source === 'renewal' ? 'Renewal' : 'Download' %> · issued <%= formatDate(credential.issuedAt) %>
+                                                    <% if (credential.usedBy.length) { %> · used by <%= credential.usedBy.join(', ') %><% } %>
+                                                </div>
+                                                <div class="cell-secondary">
+                                                    <% if (credential.revokedAt) { %>
+                                                        <span class="badge badge-danger">Revoked <%= formatDate(credential.revokedAt) %></span>
+                                                    <% } else { %>
+                                                        <span class="badge <%= credential.daysLeft < 0 ? 'badge-danger' : credential.daysLeft <= 30 ? 'badge-warning' : '' %>"><%= credential.daysLeft < 0 ? 'Expired' : 'Expires in ' + credential.daysLeft + ' days' %></span>
+                                                        <%= formatDate(credential.validTo) %>
+                                                    <% } %>
+                                                </div>
+                                            </td>
+                                            <td class="actions-cell">
+                                                <% if (!credential.revokedAt) { %>
+                                                    <button type="button" class="btn btn-danger-ghost btn-sm"
+                                                        data-revoke-url="<%= gatewayUrl %>/credentials/<%= credential.id %>/revoke"
+                                                        data-used-by="<%= credential.usedBy.join(', ') %>">
+                                                        Revoke
+                                                    </button>
+                                                <% } %>
+                                            </td>
+                                        </tr>
+                                    <% }); %>
+                                </tbody>
+                            </table>
+                        </div>
+                    <% } else { %>
+                        <div class="card-body"><p class="muted">No certificates issued yet. Download the credentials to issue the first one.</p></div>
+                    <% } %>
+                </section>
+
+                <section class="card" id="settings">
+                    <div class="card-header">
+                        <div><h2>Settings</h2></div>
+                    </div>
+                    <form id="settingsForm" class="card-body form" data-gateway-url="<%= gatewayUrl %>">
+                        <div class="field">
+                            <label for="name">Name</label>
+                            <input class="input" type="text" id="name" name="name" value="<%= gateway.name %>" maxlength="255" required>
+                        </div>
+                        <div class="field">
+                            <label for="publicUrl">Public URL</label>
+                            <input class="input mono" type="url" id="publicUrl" name="publicUrl" value="<%= gateway.publicUrl %>" required>
+                        </div>
+                        <div class="field">
+                            <label for="catalogId">Catalog</label>
+                            <select class="select" id="catalogId" name="catalogId" aria-describedby="catalog-hint">
+                                <option value="">Not attached</option>
+                                <% catalogs.forEach((catalog) => { %><option value="<%= catalog.id %>" <%= gateway.catalog && gateway.catalog.id === catalog.id ? 'selected' : '' %>><%= catalog.name %></option><% }); %>
+                            </select>
+                            <span id="catalog-hint" class="hint"><%= gateway.running ? 'The gateway is running, so it can be attached to a catalog.' : 'Start a node first: a gateway is attached to a catalog only while it runs.' %></span>
+                        </div>
+                        <label class="switch-row" for="autoPush">
+                            <input class="switch" type="checkbox" id="autoPush" name="autoPush" <%= gateway.autoPush ? 'checked' : '' %>>
+                            <span><strong>Push changes automatically</strong><span class="hint">A few seconds after a product, API, policy, connection or approval changes, the new configuration goes to every push node. Pull nodes always pick up changes on their own.</span></span>
+                        </label>
+                        <div id="settings-alert" class="alert alert-danger" role="alert" hidden>
+                            <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-secondary">Save settings</button>
+                        </div>
+                    </form>
+                </section>
+
+                <section class="card">
+                    <div class="card-header">
+                        <div>
+                            <h2>Trust</h2>
+                            <p>Both sides of every push, pull and admin sign-in are verified against this CA.</p>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <dl class="detail-list detail-list-compact">
+                            <div><dt>CA SHA-256</dt><dd><code class="fingerprint"><%= ca.fingerprint %></code></dd></div>
+                            <div><dt>Gateway CN</dt><dd><code>gateway:<%= gateway.id %></code></dd></div>
+                            <div><dt>Console CN</dt><dd><code>oauth-server-management</code></dd></div>
+                            <% if (link.enabled) { %><div><dt>Console link</dt><dd><code><%= link.url %></code></dd></div><% } %>
+                        </dl>
+                    </div>
+                </section>
+
+                <section class="card card-danger">
+                    <div class="card-header">
+                        <div><h2>Danger zone</h2></div>
+                    </div>
+                    <div class="card-body danger-row">
+                        <p>Deleting the gateway revokes its certificates and stops management from pushing to its nodes. Running nodes keep their last configuration until you stop them.</p>
+                        <button type="button" class="btn btn-danger btn-sm"
+                            data-action="<%= gatewayUrl %>" data-method="DELETE"
+                            data-confirm-title="Delete <%= gateway.name %>?"
+                            data-confirm-message="Its nodes and connection handlers are removed and its certificates revoked. This can't be undone."
+                            data-confirm-label="Delete gateway" data-danger
+                            data-success="<%= gateway.name %> was deleted"
+                            data-redirect="/developer/gateways">
+                            <%- include('partials/icon.html', { name: 'trash' }) %>Delete gateway
+                        </button>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </main>
+
+    <script src="/js/ui.js"></script>
+    <script src="/js/charts.js"></script>
+    <script src="/js/usage.js"></script>
+    <script src="/js/gateway-detail.js"></script>
+</body>
+</html>

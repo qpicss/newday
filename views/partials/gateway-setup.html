@@ -1,0 +1,112 @@
+<%#
+  The four steps from a new gateway to one that serves a catalog, each with its action inline.
+  Takes: gateway (with setup), gatewayUrl, catalogs, runCommands, credentialsFile, pullMode, linkUrl, dockerLinkUrl.
+%>
+<%
+const setup = gateway.setup;
+const stepState = (step) => step.done ? 'is-done' : (setup.next && setup.next.key === step.key ? 'is-current' : 'is-upcoming');
+const handler = gateway.handlers[0];
+%>
+<section class="card gateway-setup" id="setup" aria-labelledby="gateway-setup-title"
+    data-gateway-setup="<%= gatewayUrl %>" data-next-step="<%= setup.next ? setup.next.key : '' %>">
+    <div class="card-header">
+        <div>
+            <h2 id="gateway-setup-title">Set up <%= gateway.name %></h2>
+            <p><%= setup.doneCount %> of <%= setup.total %> done. The gateway serves API traffic once a node is running and the gateway is attached to a catalog.</p>
+        </div>
+    </div>
+    <div class="setup-progress" role="progressbar" aria-label="Setup progress" aria-valuemin="0" aria-valuemax="<%= setup.total %>" aria-valuenow="<%= setup.doneCount %>">
+        <% setup.steps.forEach((step) => { %><span class="<%= step.done ? 'is-done' : '' %>"></span><% }); %>
+    </div>
+    <ol class="setup-flow">
+        <% setup.steps.forEach((step, index) => { const state = stepState(step); %>
+            <li class="setup-flow-step <%= state %>" <%= state === 'is-current' ? 'aria-current="step"' : '' %>>
+                <span class="step-marker"><% if (step.done) { %><%- include('icon.html', { name: 'check', className: 'icon-sm' }) %><% } else { %><%= index + 1 %><% } %></span>
+                <div class="setup-flow-body">
+                    <div class="step-title"><%= step.title %></div>
+
+                    <% if (step.key === 'port') { %>
+                        <% if (step.done) { %>
+                            <div class="step-desc">Consumers call port <strong><%= handler.port %></strong> (<%= handler.protocol.toUpperCase() %>). Change it or add more under <a href="#handlers">Connection handlers</a>.</div>
+                        <% } else { %>
+                            <div class="step-desc">The port the gateway listens on for API calls. HTTPS uses a certificate issued by the console for <code><%= new URL(gateway.publicUrl).hostname %></code>.</div>
+                            <form id="quickHandlerForm" class="setup-inline-form" data-gateway-url="<%= gatewayUrl %>">
+                                <div class="field field-narrow">
+                                    <label for="quickHandlerPort">Port</label>
+                                    <input class="input input-sm" type="number" id="quickHandlerPort" name="port" min="1" max="65535" value="8443" required>
+                                </div>
+                                <div class="field field-narrow">
+                                    <label for="quickHandlerProtocol">Protocol</label>
+                                    <select class="select select-sm" id="quickHandlerProtocol" name="protocol">
+                                        <option value="https">HTTPS</option>
+                                        <option value="http">HTTP</option>
+                                    </select>
+                                </div>
+                                <button type="submit" class="btn btn-primary btn-sm"><%- include('icon.html', { name: 'plus' }) %>Open port</button>
+                            </form>
+                            <div id="quick-handler-alert" class="alert alert-danger" role="alert" hidden>
+                                <%- include('icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                            </div>
+                            <div class="hint">To use your own certificate or a port policy, add the port under <a href="#handlers">Connection handlers</a> instead.</div>
+                        <% } %>
+                    <% } %>
+
+                    <% if (step.key === 'credentials') { %>
+                        <% if (step.done) { %>
+                            <div class="step-desc">Issued <%= formatDate(gateway.credentialsIssuedAt) %>. Every node of this gateway uses the same file. <a href="<%= gatewayUrl %>/credentials" data-credentials-download>Download again</a> to get a new certificate.</div>
+                        <% } else if (state !== 'is-current') { %>
+                            <div class="step-desc">One file with the gateway's certificate, its private key and the console's CA. You can download it after opening a port.</div>
+                        <% } else { %>
+                            <div class="step-desc">One file with the gateway's certificate, its private key and the console's CA. The node uses it to prove who it is. Keep it private.</div>
+                            <a class="btn btn-primary btn-sm step-action" href="<%= gatewayUrl %>/credentials" data-credentials-download>
+                                <%- include('icon.html', { name: 'download' }) %>Download <%= credentialsFile %>
+                            </a>
+                        <% } %>
+                    <% } %>
+
+                    <% if (step.key === 'node') { %>
+                        <% if (step.done) { %>
+                            <div class="step-desc"><%= gateway.nodes.length %> node<%= gateway.nodes.length === 1 ? '' : 's' %> connected. See <a href="#nodes">Nodes</a>.</div>
+                        <% } else if (state === 'is-current') { %>
+                            <div class="step-desc">Copy the command for your system and run it in the folder where you saved <code><%= credentialsFile %></code>.
+                                <% if (pullMode) { %>The node then connects to the console at <code><%= dockerLinkUrl %></code> by itself.<% } else { %>Then add the node's address under <a href="#nodes">Nodes</a>.<% } %></div>
+                            <%- include('gateway-run-commands.html', { commands: runCommands, credentialsFile }) %>
+                            <% if (pullMode) { %>
+                                <div class="setup-waiting" role="status" data-setup-waiting>
+                                    <span class="spinner" aria-hidden="true"></span>
+                                    <span>Waiting for a node to connect. This page updates by itself.</span>
+                                </div>
+                            <% } %>
+                        <% } else { %>
+                            <div class="step-desc">Run the gateway with Docker or as a Linux service. The commands appear here once the earlier steps are done.</div>
+                        <% } %>
+                    <% } %>
+
+                    <% if (step.key === 'catalog') { %>
+                        <% if (step.done) { %>
+                            <div class="step-desc">Serves the published products of <a href="/developer/catalogs/<%= gateway.catalog.id %>"><%= gateway.catalog.name %></a>.</div>
+                        <% } else if (!setup.running) { %>
+                            <div class="step-desc">The gateway then serves that catalog's published products and APIs. You can pick a catalog once a node is running.</div>
+                        <% } else if (!catalogs.length) { %>
+                            <div class="step-desc">Your organization has no catalog yet. <a href="/developer/catalogs">Create a catalog</a>, then come back to attach it.</div>
+                        <% } else { %>
+                            <div class="step-desc">The gateway serves the catalog's published products and APIs to approved applications.</div>
+                            <form id="quickAttachForm" class="setup-inline-form" data-gateway-url="<%= gatewayUrl %>">
+                                <div class="field">
+                                    <label for="quickCatalogId">Catalog</label>
+                                    <select class="select select-sm" id="quickCatalogId" name="catalogId" required>
+                                        <% catalogs.forEach((catalog) => { %><option value="<%= catalog.id %>"><%= catalog.name %></option><% }); %>
+                                    </select>
+                                </div>
+                                <button type="submit" class="btn btn-primary btn-sm"><%- include('icon.html', { name: 'link' }) %>Attach</button>
+                            </form>
+                            <div id="quick-attach-alert" class="alert alert-danger" role="alert" hidden>
+                                <%- include('icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                            </div>
+                        <% } %>
+                    <% } %>
+                </div>
+            </li>
+        <% }); %>
+    </ol>
+</section>

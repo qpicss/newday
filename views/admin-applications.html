@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <%- include('partials/head.html', { title: 'All applications' }) %>
+</head>
+<body>
+    <%- include('partials/app-nav.html', { active: 'admin' }) %>
+
+    <main id="main" class="page">
+        <nav class="breadcrumb" aria-label="Breadcrumb">
+            <a href="/developer/admin">Admin</a>
+            <%- include('partials/icon.html', { name: 'chevron-right' }) %>
+            <span aria-current="page">Applications</span>
+        </nav>
+        <div class="page-header">
+            <div>
+                <h1>All applications</h1>
+                <p class="page-subtitle">Every OAuth client on this server, across all users.</p>
+            </div>
+        </div>
+
+        <section class="card">
+            <% if (applications.length) { %>
+                <div class="toolbar">
+                    <label class="search">
+                        <span class="sr-only">Search applications</span>
+                        <%- include('partials/icon.html', { name: 'search' }) %>
+                        <input class="input" type="search" placeholder="Search by app, client ID or owner" data-filter="#all-applications">
+                    </label>
+                    <span class="badge"><%= applications.length %> application<%= applications.length === 1 ? '' : 's' %></span>
+                </div>
+                <%- include('partials/admin-app-table.html', { tableId: 'all-applications', showOwner: true }) %>
+            <% } else { %>
+                <div class="empty-state">
+                    <div class="empty-icon"><%- include('partials/icon.html', { name: 'grid', className: 'icon-lg' }) %></div>
+                    <h3>No applications yet</h3>
+                    <p>Applications appear here as soon as any user registers one.</p>
+                </div>
+            <% } %>
+        </section>
+    </main>
+
+    <script src="/js/ui.js"></script>
+    <script src="/js/applications.js"></script>
+</body>
+</html>

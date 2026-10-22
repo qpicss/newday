@@ -1,0 +1,163 @@
+<%#
+  Inputs of a dictionary field, read by public/js/field-form.js (FieldForm.read). Sections marked
+  data-types show only for those types. Takes: prefix (id prefix), fieldTypes, itemTypes, and
+  optionally field (to edit), compact (name, type, format and description only) and embedded (inside
+  another form, where it may stay hidden: its name is then not a required input of that form) and
+  schemaOnly (no name or description: the schema of something else, such as a parameter).
+%>
+<%
+const p = prefix;
+const f = typeof field !== 'undefined' && field ? field : null;
+const isCompact = typeof compact !== 'undefined' && compact;
+const isEmbedded = typeof embedded !== 'undefined' && embedded;
+const isSchemaOnly = typeof schemaOnly !== 'undefined' && schemaOnly;
+const s = f ? f.schema : { type: 'string' };
+const items = s.items || { type: 'string' };
+const shown = (types, type = s.type) => (types.split(' ').includes(type) ? '' : 'hidden');
+const text = (value) => (value === undefined || value === null ? '' : value);
+const enumText = (values) => (values || []).filter((value) => value !== null).map((value) => String(value)).join('\n');
+const valueText = (value) => (value === undefined ? '' : typeof value === 'string' ? value : JSON.stringify(value));
+const typeLabels = { string: 'string (text)', number: 'number', integer: 'integer (whole number)', boolean: 'boolean (true or false)', array: 'array (a list)', object: 'object' };
+%>
+<div class="field-form" data-field-form data-prefix="<%= p %>">
+    <div class="field-row">
+        <% if (!isSchemaOnly) { %>
+        <div class="field">
+            <label for="<%= p %>Name">Name</label>
+            <input class="input mono" type="text" id="<%= p %>Name" data-field-input="name" value="<%= f ? f.name : '' %>" maxlength="100" placeholder="customerId" autocomplete="off" spellcheck="false"<%= isEmbedded ? '' : ' required' %>>
+        </div>
+        <% } %>
+        <div class="field">
+            <label for="<%= p %>Type">Type</label>
+            <select class="select" id="<%= p %>Type" data-schema="type">
+                <% fieldTypes.forEach((type) => { %><option value="<%= type %>" <%= s.type === type ? 'selected' : '' %>><%= typeLabels[type] %></option><% }); %>
+            </select>
+        </div>
+    </div>
+
+    <div class="field-row" data-types="array" <%= shown('array') %>>
+        <div class="field">
+            <label for="<%= p %>ItemsType">Type of each item</label>
+            <select class="select" id="<%= p %>ItemsType" data-schema="items.type">
+                <% itemTypes.forEach((type) => { %><option value="<%= type %>" <%= items.type === type ? 'selected' : '' %>><%= typeLabels[type] %></option><% }); %>
+            </select>
+        </div>
+        <div class="field" data-item-types="string number integer" <%= shown('string number integer', items.type) %>>
+            <label for="<%= p %>ItemsFormat">Item format <span class="label-optional">(optional)</span></label>
+            <input class="input mono" type="text" id="<%= p %>ItemsFormat" data-schema="items.format" value="<%= text(items.format) %>" maxlength="50" list="<%= p %>Formats" autocomplete="off" spellcheck="false">
+        </div>
+    </div>
+
+    <div class="field" data-types="string number integer" <%= shown('string number integer') %>>
+        <label for="<%= p %>Format">Format <span class="label-optional">(optional)</span></label>
+        <input class="input mono" type="text" id="<%= p %>Format" data-schema="format" value="<%= text(s.format) %>" maxlength="50" list="<%= p %>Formats" placeholder="email, uuid, date-time, int64…" autocomplete="off" spellcheck="false" aria-describedby="<%= p %>FormatHint">
+        <span id="<%= p %>FormatHint" class="hint">Gateways check email, uuid, date, date-time, time, uri, hostname, ipv4, ipv6, byte, int32 and int64.</span>
+    </div>
+    <datalist id="<%= p %>Formats">
+        <% ['email', 'uuid', 'date', 'date-time', 'time', 'uri', 'hostname', 'ipv4', 'ipv6', 'byte', 'binary', 'password', 'int32', 'int64', 'float', 'double'].forEach((format) => { %><option value="<%= format %>"></option><% }); %>
+    </datalist>
+
+    <% if (!isSchemaOnly) { %>
+    <div class="field">
+        <label for="<%= p %>Description">Description <span class="label-optional">(optional)</span></label>
+        <textarea class="textarea" id="<%= p %>Description" data-field-input="description" rows="2" maxlength="5000" placeholder="What the value means, in the words your consumers use"><%= f ? text(f.description) : '' %></textarea>
+    </div>
+    <% } %>
+
+    <% if (!isCompact) { %>
+        <div class="form-section" data-types="string" <%= shown('string') %>>
+            <h3 class="form-section-title">Text rules</h3>
+            <div class="field">
+                <label for="<%= p %>Pattern">Pattern <span class="label-optional">(regular expression)</span></label>
+                <input class="input mono" type="text" id="<%= p %>Pattern" data-schema="pattern" value="<%= text(s.pattern) %>" maxlength="500" placeholder="^[A-Z]{2}[0-9]{6}$" autocomplete="off" spellcheck="false">
+            </div>
+            <div class="field-row">
+                <div class="field">
+                    <label for="<%= p %>MinLength">Minimum length</label>
+                    <input class="input" type="number" min="0" step="1" id="<%= p %>MinLength" data-schema="minLength" data-kind="count" value="<%= text(s.minLength) %>">
+                </div>
+                <div class="field">
+                    <label for="<%= p %>MaxLength">Maximum length</label>
+                    <input class="input" type="number" min="0" step="1" id="<%= p %>MaxLength" data-schema="maxLength" data-kind="count" value="<%= text(s.maxLength) %>">
+                </div>
+            </div>
+        </div>
+
+        <div class="form-section" data-types="number integer" <%= shown('number integer') %>>
+            <h3 class="form-section-title">Number rules</h3>
+            <div class="field-row">
+                <div class="field">
+                    <label for="<%= p %>Minimum">Minimum</label>
+                    <input class="input" type="number" step="any" id="<%= p %>Minimum" data-schema="minimum" data-kind="number" value="<%= text(s.minimum) %>">
+                    <label class="checkbox-row"><input type="checkbox" data-schema="exclusiveMinimum" <%= s.exclusiveMinimum ? 'checked' : '' %>> Must be above it (not equal)</label>
+                </div>
+                <div class="field">
+                    <label for="<%= p %>Maximum">Maximum</label>
+                    <input class="input" type="number" step="any" id="<%= p %>Maximum" data-schema="maximum" data-kind="number" value="<%= text(s.maximum) %>">
+                    <label class="checkbox-row"><input type="checkbox" data-schema="exclusiveMaximum" <%= s.exclusiveMaximum ? 'checked' : '' %>> Must be below it (not equal)</label>
+                </div>
+            </div>
+            <div class="field">
+                <label for="<%= p %>MultipleOf">Multiple of <span class="label-optional">(optional, for example 0.01 for cents)</span></label>
+                <input class="input" type="number" step="any" min="0" id="<%= p %>MultipleOf" data-schema="multipleOf" data-kind="number" value="<%= text(s.multipleOf) %>">
+            </div>
+        </div>
+
+        <div class="form-section" data-types="array" <%= shown('array') %>>
+            <h3 class="form-section-title">List rules</h3>
+            <div class="field-row">
+                <div class="field">
+                    <label for="<%= p %>MinItems">Fewest items</label>
+                    <input class="input" type="number" min="0" step="1" id="<%= p %>MinItems" data-schema="minItems" data-kind="count" value="<%= text(s.minItems) %>">
+                </div>
+                <div class="field">
+                    <label for="<%= p %>MaxItems">Most items</label>
+                    <input class="input" type="number" min="0" step="1" id="<%= p %>MaxItems" data-schema="maxItems" data-kind="count" value="<%= text(s.maxItems) %>">
+                </div>
+            </div>
+            <label class="checkbox-row"><input type="checkbox" data-schema="uniqueItems" <%= s.uniqueItems ? 'checked' : '' %>> Every item is different</label>
+            <div class="field" data-item-types="string number integer" <%= shown('string number integer', items.type) %>>
+                <label for="<%= p %>ItemsEnum">Allowed item values <span class="label-optional">(one per line, optional)</span></label>
+                <textarea class="textarea mono" id="<%= p %>ItemsEnum" data-schema="items.enum" rows="3" spellcheck="false"><%= enumText(items.enum) %></textarea>
+            </div>
+        </div>
+
+        <div class="form-section" data-types="object" <%= shown('object') %>>
+            <h3 class="form-section-title">Object rules</h3>
+            <div class="field">
+                <label for="<%= p %>AdditionalProperties">Properties</label>
+                <select class="select" id="<%= p %>AdditionalProperties" data-schema="additionalProperties" aria-describedby="<%= p %>AdditionalHint">
+                    <option value="" <%= s.additionalProperties === undefined ? 'selected' : '' %>>Not stated</option>
+                    <option value="true" <%= s.additionalProperties === true ? 'selected' : '' %>>Any properties</option>
+                    <option value="false" <%= s.additionalProperties === false ? 'selected' : '' %>>No properties (empty object)</option>
+                </select>
+                <span id="<%= p %>AdditionalHint" class="hint">Describe its properties under Structure. To reuse the same object in several places, make it an object of the dictionary instead.</span>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h3 class="form-section-title">Values</h3>
+            <div class="field" data-types="string number integer" <%= shown('string number integer') %>>
+                <label for="<%= p %>Enum">Allowed values <span class="label-optional">(one per line, optional)</span></label>
+                <textarea class="textarea mono" id="<%= p %>Enum" data-schema="enum" rows="3" spellcheck="false" placeholder="pending&#10;paid&#10;shipped"><%= enumText(s.enum) %></textarea>
+            </div>
+            <div class="field-row">
+                <div class="field">
+                    <label for="<%= p %>Example">Example <span class="label-optional">(optional)</span></label>
+                    <input class="input mono" type="text" id="<%= p %>Example" data-schema="example" data-kind="value" value="<%= valueText(s.example) %>" maxlength="2000" autocomplete="off" spellcheck="false">
+                </div>
+                <div class="field">
+                    <label for="<%= p %>Default">Default <span class="label-optional">(optional)</span></label>
+                    <input class="input mono" type="text" id="<%= p %>Default" data-schema="default" data-kind="value" value="<%= valueText(s.default) %>" maxlength="2000" autocomplete="off" spellcheck="false">
+                </div>
+            </div>
+            <span class="hint">Lists and objects are written as JSON, for example ["a", "b"]. Write null for an empty value when the value may be null.</span>
+            <div class="checkbox-inline-group">
+                <label class="checkbox-row"><input type="checkbox" data-schema="nullable" <%= s.nullable ? 'checked' : '' %>> May be null</label>
+                <label class="checkbox-row"><input type="checkbox" data-schema="readOnly" <%= s.readOnly ? 'checked' : '' %>> Read-only (only in responses)</label>
+                <label class="checkbox-row"><input type="checkbox" data-schema="writeOnly" <%= s.writeOnly ? 'checked' : '' %>> Write-only (only in requests)</label>
+                <label class="checkbox-row"><input type="checkbox" data-schema="deprecated" <%= s.deprecated ? 'checked' : '' %>> Deprecated</label>
+            </div>
+        </div>
+    <% } %>
+</div>

@@ -1,0 +1,15 @@
+<%#
+  Opens the schema of one body or response content entry: a schema of the document on the Schemas
+  tab, otherwise (written inline) in the schema editor, with a button that moves it into components.schemas. Takes: api, operation, content, status (null for the body).
+%>
+<% if (content.componentName) { %>
+    <a class="btn btn-ghost btn-sm" href="/developer/apis/<%= api.id %>/schemas?name=<%= encodeURIComponent(content.componentName) %>"><%- include('icon.html', { name: 'edit' }) %>Edit <%= content.componentName %></a>
+<% } else { %>
+    <a class="btn btn-ghost btn-sm" href="/developer/apis/<%= api.id %>/design/schema?method=<%= operation.method %>&path=<%= encodeURIComponent(operation.path) %>&contentType=<%= encodeURIComponent(content.type) %><%= status ? '&status=' + encodeURIComponent(status) : '' %>"><%- include('icon.html', { name: 'edit' }) %>View and edit</a>
+    <button type="button" class="btn btn-ghost btn-sm"
+        data-action="/api/org/apis/<%= api.id %>/operations/content-schema/move?method=<%= operation.method %>&path=<%= encodeURIComponent(operation.path) %>&contentType=<%= encodeURIComponent(content.type) %><%= status ? '&status=' + encodeURIComponent(status) : '' %>" data-method="POST" data-body='{}'
+        data-confirm-title="Move it to the document's schemas?"
+        data-confirm-message="It becomes <%= content.fieldId && typeof fieldNames !== 'undefined' && fieldNames[content.fieldId] ? 'the schema ' + fieldNames[content.fieldId] : 'a named schema' %> in components.schemas, listed in Schemas in this document, and this <%= status ? 'response' : 'body' %> refers to it. Other endpoints can then use it too."
+        data-confirm-label="Move to schemas"
+        data-success="Moved to the document's schemas"><%- include('icon.html', { name: 'package' }) %>Move to schemas</button>
+<% } %>

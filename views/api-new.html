@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <%- include('partials/head.html', { title: 'Create API' }) %>
+</head>
+<body>
+    <%- include('partials/app-nav.html', { active: 'catalogs' }) %>
+
+    <main id="main" class="page">
+        <nav class="breadcrumb" aria-label="Breadcrumb">
+            <a href="/developer/catalogs">Catalogs</a>
+            <%- include('partials/icon.html', { name: 'chevron-right' }) %>
+            <a href="/developer/catalogs/<%= catalog.id %>"><%= catalog.name %></a>
+            <%- include('partials/icon.html', { name: 'chevron-right' }) %>
+            <span aria-current="page">Create API</span>
+        </nav>
+        <div class="page-header">
+            <div>
+                <h1>Create an API</h1>
+                <p class="page-subtitle">Describe your API and its endpoints for the <%= catalog.name %> catalog. An OpenAPI 3.0 document is generated for you.</p>
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <section class="card">
+                <form id="apiForm" class="card-body form" data-catalog-id="<%= catalog.id %>">
+                    <div class="form-section">
+                        <h2 class="form-section-title">Details</h2>
+                        <p>How the API is identified in products and the catalog.</p>
+                        <div class="field-row">
+                            <div class="field">
+                                <label for="name">Name</label>
+                                <input class="input" type="text" id="name" name="name" maxlength="255" placeholder="Orders API" required autofocus>
+                            </div>
+                            <div class="field field-narrow">
+                                <label for="version">Version</label>
+                                <input class="input" type="text" id="version" name="version" maxlength="50" value="1.0.0" required>
+                            </div>
+                        </div>
+                        <div class="field">
+                            <label for="baseUrl">Base URL <span class="label-optional">(optional)</span></label>
+                            <input class="input mono" type="text" id="baseUrl" name="baseUrl" maxlength="2048" placeholder="https://api.example.com/v1">
+                        </div>
+                        <div class="field">
+                            <label for="description">Description <span class="label-optional">(optional)</span></label>
+                            <textarea class="textarea" id="description" name="description" rows="3" maxlength="5000"></textarea>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h2 class="form-section-title">Endpoints</h2>
+                        <p>You can also add or remove endpoints later.</p>
+                        <div class="endpoint-list" id="endpoint-list">
+                            <%- include('partials/endpoint-fields.html', { removable: true, optionalPath: true }) %>
+                        </div>
+                        <div>
+                            <button type="button" class="btn btn-ghost btn-sm" id="addEndpoint"><%- include('partials/icon.html', { name: 'plus' }) %>Add endpoint</button>
+                        </div>
+                    </div>
+
+                    <div id="form-alert" class="alert alert-danger" role="alert" hidden>
+                        <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                    </div>
+                    <div class="form-actions">
+                        <a href="/developer/catalogs/<%= catalog.id %>" class="btn btn-secondary">Cancel</a>
+                        <button type="submit" class="btn btn-primary">Create API</button>
+                    </div>
+                </form>
+            </section>
+
+            <aside class="card">
+                <div class="card-header">
+                    <div>
+                        <h2>Already have a spec?</h2>
+                        <p>Skip the typing.</p>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <ul class="tips">
+                        <li><%- include('partials/icon.html', { name: 'upload' }) %><span><a href="/developer/apis/import"><strong>Import an OpenAPI file</strong></a> (3.0 or 3.1, JSON or YAML) to keep every schema and description.</span></li>
+                        <li><%- include('partials/icon.html', { name: 'info' }) %><span>Use <code>{braces}</code> for path parameters, like <code>/orders/{orderId}</code>.</span></li>
+                    </ul>
+                </div>
+            </aside>
+        </div>
+
+        <template id="endpoint-row-template">
+            <%- include('partials/endpoint-fields.html', { removable: true, optionalPath: true }) %>
+        </template>
+    </main>
+
+    <script src="/js/ui.js"></script>
+    <script src="/js/api-new.js"></script>
+</body>
+</html>

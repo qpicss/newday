@@ -1,0 +1,14 @@
+<%#
+  Tabs of an API: its overview (gateway settings, products), the designer, the schema designer and the source editor.
+  Takes: api, current ('overview' | 'design' | 'schemas' | 'source').
+%>
+<nav class="page-tabs" aria-label="API sections">
+    <% [
+        { key: 'overview', href: '/developer/apis/' + api.id, label: 'Overview', icon: 'layout' },
+        { key: 'design', href: '/developer/apis/' + api.id + '/design', label: 'Design', icon: 'braces' },
+        { key: 'schemas', href: '/developer/apis/' + api.id + '/schemas', label: 'Schemas', icon: 'package' },
+        { key: 'source', href: '/developer/apis/' + api.id + '/source', label: 'Source', icon: 'file-code' },
+    ].forEach((tab) => { %>
+        <a class="page-tab" href="<%= tab.href %>"<% if (tab.key === current) { %> aria-current="page"<% } %>><%- include('icon.html', { name: tab.icon, className: 'icon-sm' }) %><%= tab.label %></a>
+    <% }); %>
+</nav>

@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <%- include('partials/head.html', { title: catalog.name }) %>
+</head>
+<body>
+    <%- include('partials/app-nav.html', { active: 'catalogs' }) %>
+
+    <main id="main" class="page">
+        <nav class="breadcrumb" aria-label="Breadcrumb">
+            <a href="/developer/catalogs">Catalogs</a>
+            <%- include('partials/icon.html', { name: 'chevron-right' }) %>
+            <span aria-current="page"><%= catalog.name %></span>
+        </nav>
+        <div class="page-header">
+            <div class="user-cell">
+                <span class="app-avatar app-avatar-lg"><%- include('partials/icon.html', { name: 'book', className: 'icon-lg' }) %></span>
+                <div>
+                    <p class="page-eyebrow"><%= user.organization.name %> · Catalog</p>
+                    <h1><%= catalog.name %></h1>
+                    <p class="page-subtitle"><%= catalog.description || 'Request access to a product for one of your applications. An admin of ' + user.organization.name + ' approves each request.' %></p>
+                </div>
+            </div>
+            <div class="page-actions">
+                <a href="/developer/applications" class="btn btn-secondary"><%- include('partials/icon.html', { name: 'grid' }) %>My applications</a>
+            </div>
+        </div>
+
+        <% if (products.length) { %>
+            <div class="section-toolbar">
+                <label class="search">
+                    <span class="sr-only">Search products and APIs</span>
+                    <%- include('partials/icon.html', { name: 'search' }) %>
+                    <input class="input" type="search" placeholder="Search products and APIs" data-filter="#product-grid">
+                </label>
+            </div>
+            <div class="product-grid" id="product-grid">
+                <% products.forEach((product) => { %>
+                    <a class="card product-card" href="/developer/catalog/<%= product.id %>"
+                        data-search="<%= [product.name, product.description].concat(product.apis.map((api) => api.name)).filter(Boolean).join(' ').toLowerCase() %>">
+                        <div class="product-card-head">
+                            <span class="app-avatar"><%- include('partials/icon.html', { name: 'package', className: 'icon-sm' }) %></span>
+                            <div>
+                                <div class="product-org"><%= catalog.name %></div>
+                                <h2><%= product.name %></h2>
+                            </div>
+                        </div>
+                        <p class="product-description"><%= product.description || 'No description provided.' %></p>
+                        <ul class="product-apis">
+                            <% product.apis.forEach((api) => { %>
+                                <li><span class="cell-primary"><%= api.name %></span> <span class="muted">v<%= api.version %> · <%= api.operations %> endpoint<%= api.operations === 1 ? '' : 's' %></span></li>
+                            <% }); %>
+                        </ul>
+                        <div class="badges">
+                            <span class="badge"><%- include('partials/icon.html', { name: 'gauge', className: 'icon-sm' }) %><%= formatRateLimit(product) %></span>
+                            <span class="badge <%= product.billing.plan === 'free' ? 'badge-success' : 'badge-primary' %>"><%- include('partials/icon.html', { name: 'credit-card', className: 'icon-sm' }) %><%= formatBilling(product) %></span>
+                        </div>
+                    </a>
+                <% }); %>
+            </div>
+            <p class="no-results" data-filter-empty="#product-grid" hidden>No products match your search.</p>
+        <% } else { %>
+            <section class="card">
+                <div class="empty-state">
+                    <div class="empty-icon"><%- include('partials/icon.html', { name: 'package', className: 'icon-lg' }) %></div>
+                    <h3>Nothing published yet</h3>
+                    <p>This catalog has no published products yet. Check back later.</p>
+                </div>
+            </section>
+        <% } %>
+    </main>
+
+    <script src="/js/ui.js"></script>
+</body>
+</html>

@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <%- include('partials/head.html', { title: 'Developer identity platform' }) %>
+</head>
+<body>
+    <header class="site-header">
+        <a class="brand" href="/">
+            <span class="brand-mark"><%- include('partials/icon.html', { name: 'logo' }) %></span>
+            OAuth Server
+        </a>
+        <nav class="site-header-actions" aria-label="Main navigation">
+            <a href="/login" class="btn btn-ghost">Sign in</a>
+            <a href="/register" class="btn btn-primary">Get started</a>
+        </nav>
+    </header>
+
+    <main id="main">
+        <section class="hero">
+            <div>
+                <span class="hero-badge"><%- include('partials/icon.html', { name: 'shield', className: 'icon-sm' }) %>Developer identity platform</span>
+                <h1>Build trusted integrations with <em>OAuth</em>.</h1>
+                <p class="hero-copy">Register applications, manage redirect URIs and keep credentials under control, all from one focused workspace.</p>
+                <div class="hero-actions">
+                    <a href="/register" class="btn btn-primary btn-lg">Create a free account <%- include('partials/icon.html', { name: 'arrow-right' }) %></a>
+                    <a href="/login" class="btn btn-secondary btn-lg">Sign in</a>
+                </div>
+                <div class="hero-trust">
+                    <span><%- include('partials/icon.html', { name: 'check' }) %>Hashed client secrets</span>
+                    <span><%- include('partials/icon.html', { name: 'check' }) %>Validated redirect URIs</span>
+                    <span><%- include('partials/icon.html', { name: 'check' }) %>Role-based access</span>
+                </div>
+            </div>
+
+            <div class="code-window" aria-hidden="true">
+                <div class="code-window-bar"><i></i><i></i><i></i><span>register-client.http</span></div>
+<pre><span class="tok-comment"># Register a new OAuth client</span>
+<span class="tok-method">POST</span> /api/applications
+<span class="tok-key">Authorization</span>: Bearer &lt;access-token&gt;
+
+{
+  <span class="tok-key">"name"</span>: <span class="tok-str">"Acme Dashboard"</span>,
+  <span class="tok-key">"redirectUris"</span>: [<span class="tok-str">"https://acme.com/callback"</span>]
+}
+
+<span class="tok-ok">201 Created</span>
+{
+  <span class="tok-key">"clientId"</span>: <span class="tok-str">"7f3c2a91-4b0e-4d2f-9a51-…"</span>,
+  <span class="tok-key">"clientSecret"</span>: <span class="tok-str">"shown once, stored hashed"</span>
+}</pre>
+            </div>
+        </section>
+
+        <section class="section" aria-labelledby="features-title">
+            <div class="section-title">
+                <h2 id="features-title">Everything you need to ship an integration</h2>
+                <p>A clear workflow from your first client to production.</p>
+            </div>
+            <div class="feature-grid">
+                <article class="card feature-card">
+                    <span class="stat-icon"><%- include('partials/icon.html', { name: 'grid' }) %></span>
+                    <h3>Application registry</h3>
+                    <p>Create OAuth clients, see their credentials at a glance and keep ownership clear.</p>
+                </article>
+                <article class="card feature-card">
+                    <span class="stat-icon is-indigo"><%- include('partials/icon.html', { name: 'link' }) %></span>
+                    <h3>Redirect URI validation</h3>
+                    <p>Only HTTPS callbacks (and localhost for development) are accepted, so typos never reach production.</p>
+                </article>
+                <article class="card feature-card">
+                    <span class="stat-icon is-success"><%- include('partials/icon.html', { name: 'users' }) %></span>
+                    <h3>Admin controls</h3>
+                    <p>Manage users, roles and verification status from a single console.</p>
+                </article>
+            </div>
+        </section>
+    </main>
+
+    <footer class="site-footer">&copy; <%= new Date().getFullYear() %> OAuth Server · Developer console</footer>
+</body>
+</html>

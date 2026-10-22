@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <%- include('partials/head.html', { title: 'My profile' }) %>
+</head>
+<body>
+    <%- include('partials/app-nav.html', { active: 'profile' }) %>
+
+    <main id="main" class="page page-narrow">
+        <div class="page-header">
+            <div>
+                <p class="page-eyebrow">Account</p>
+                <h1>My profile</h1>
+                <p class="page-subtitle">Your account information on this OAuth server.</p>
+            </div>
+        </div>
+
+        <div class="stack">
+            <section class="card">
+                <div class="card-body">
+                    <div class="profile-hero">
+                        <span class="avatar avatar-lg"><%= initials(profile.name) %></span>
+                        <div>
+                            <h2><%= profile.name %></h2>
+                            <p><%= profile.email %></p>
+                            <div class="badges">
+                                <span class="badge <%= profile.role === 'admin' ? 'badge-admin' : '' %>"><%= profile.role === 'admin' ? 'Admin' : 'Developer' %></span>
+                                <% if (profile.isVerified) { %>
+                                    <span class="badge badge-success badge-dot">Verified</span>
+                                <% } else { %>
+                                    <span class="badge badge-warning badge-dot">Not verified</span>
+                                <% } %>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="card">
+                <div class="card-header">
+                    <div>
+                        <h2>Account details</h2>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <dl class="detail-list">
+                        <div><dt>Name</dt><dd><%= profile.name %></dd></div>
+                        <div><dt>Email</dt><dd><%= profile.email %></dd></div>
+                        <div><dt>Organization</dt><dd><% if (profile.organization) { %><a href="/developer/organization"><%= profile.organization.name %></a><% } else { %>None<% } %></dd></div>
+                        <div><dt>Organization role</dt><dd><%= profile.orgRole === 'admin' ? 'Admin' : 'Member' %></dd></div>
+                        <div><dt>Platform role</dt><dd><%= profile.role === 'admin' ? 'Platform administrator' : 'Developer' %></dd></div>
+                        <div><dt>Verification</dt><dd><%= profile.isVerified ? 'Verified' : 'Not verified' %></dd></div>
+                        <div><dt>Member since</dt><dd><%= formatDate(profile.createdAt) %></dd></div>
+                        <div>
+                            <dt>User ID</dt>
+                            <dd>
+                                <span class="code-pill">
+                                    <code id="user-id"><%= profile.id %></code>
+                                    <button type="button" class="copy-btn" data-copy-target="#user-id" aria-label="Copy user ID"><%- include('partials/icon.html', { name: 'copy' }) %></button>
+                                </span>
+                            </dd>
+                        </div>
+                    </dl>
+                </div>
+            </section>
+
+            <section class="card">
+                <div class="card-header">
+                    <div>
+                        <h2>Session</h2>
+                        <p>Sign out of the developer console on this device.</p>
+                    </div>
+                    <form method="POST" action="/auth/logout">
+                        <button type="submit" class="btn btn-secondary btn-sm"><%- include('partials/icon.html', { name: 'logout' }) %>Sign out</button>
+                    </form>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <script src="/js/ui.js"></script>
+</body>
+</html>

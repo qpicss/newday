@@ -1,0 +1,26 @@
+<%#
+  Options of a "described by" select on the designer: dictionary objects, the document's own
+  schemas (those not from the dictionary) and dictionary fields. Values are type:id (or schema:name).
+  Takes: dictionary ({ fields, objects }), docSchemas, selected.
+%>
+<% if (dictionary.objects.length) { %>
+    <optgroup label="Dictionary objects">
+        <% dictionary.objects.forEach((object) => { const value = 'object:' + object.id; %>
+            <option value="<%= value %>" <%= selected === value ? 'selected' : '' %>><%= object.name %> (<%= object.propertyCount %> propert<%= object.propertyCount === 1 ? 'y' : 'ies' %>)</option>
+        <% }); %>
+    </optgroup>
+<% } %>
+<% if (docSchemas.length) { %>
+    <optgroup label="Schemas in this document">
+        <% docSchemas.forEach((schema) => { const value = 'schema:' + schema.name; %>
+            <option value="<%= value %>" <%= selected === value ? 'selected' : '' %>><%= schema.name %> (<%= schema.schema %>)</option>
+        <% }); %>
+    </optgroup>
+<% } %>
+<% if (dictionary.fields.length) { %>
+    <optgroup label="Dictionary fields">
+        <% dictionary.fields.forEach((field) => { const value = 'field:' + field.id; %>
+            <option value="<%= value %>" <%= selected === value ? 'selected' : '' %>><%= field.name %> (<%= field.summary %>)</option>
+        <% }); %>
+    </optgroup>
+<% } %>

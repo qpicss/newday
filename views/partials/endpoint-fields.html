@@ -1,0 +1,15 @@
+<%
+// Method / path / summary inputs for one endpoint. Expects `methods`;
+// `optionalPath` lets the row be left empty, `removable` adds a remove button.
+const pathRequired = typeof optionalPath === 'undefined' || !optionalPath;
+%>
+<div class="endpoint-row" data-endpoint-row>
+    <select class="select select-sm method-select" name="method" aria-label="HTTP method">
+        <% methods.forEach((method) => { %><option value="<%= method %>"><%= method.toUpperCase() %></option><% }); %>
+    </select>
+    <input class="input input-sm mono" type="text" name="path" placeholder="/users/{id}" aria-label="Path" maxlength="500" <%= pathRequired ? 'required' : '' %>>
+    <input class="input input-sm" type="text" name="summary" placeholder="Summary (optional)" aria-label="Summary" maxlength="255">
+    <% if (typeof removable !== 'undefined' && removable) { %>
+        <button type="button" class="btn btn-ghost btn-sm btn-icon" data-remove-endpoint aria-label="Remove endpoint" title="Remove"><%- include('icon.html', { name: 'x' }) %></button>
+    <% } %>
+</div>

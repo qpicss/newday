@@ -1,0 +1,13 @@
+node_modules/
+.env
+*.sqlite
+backups/
+gateway/node_modules/
+gateway/data/
+*credentials*.json
+# The previous app, kept locally for reference only (it holds certificates and keys)
+oldapp/
+# Private keys and certificates never belong in the repository
+*.pfx
+*.p12
+*.key

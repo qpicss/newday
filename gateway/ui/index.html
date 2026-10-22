@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gateway admin</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <main class="login" id="login-view" hidden>
+        <div class="login-card">
+            <div class="brand"><span class="brand-mark" aria-hidden="true"></span>Gateway admin</div>
+            <h1>Sign in</h1>
+            <p class="muted">Use the email and password of an admin of the organization that owns this gateway. They are checked by the management console.</p>
+            <form id="login-form" class="form" novalidate>
+                <label class="field">
+                    <span>Email</span>
+                    <input class="input" type="email" id="email" name="email" autocomplete="username" required autofocus>
+                </label>
+                <label class="field">
+                    <span>Password</span>
+                    <input class="input" type="password" id="password" name="password" autocomplete="current-password" required>
+                </label>
+                <p class="alert" id="login-error" role="alert" hidden></p>
+                <button class="btn btn-primary" type="submit" id="login-button">Sign in</button>
+            </form>
+        </div>
+    </main>
+
+    <div class="shell" id="app-view" hidden>
+        <header class="topbar">
+            <div class="topbar-inner">
+                <div class="brand"><span class="brand-mark" aria-hidden="true"></span><span id="gateway-name">Gateway</span></div>
+                <nav class="tabs" aria-label="Sections">
+                    <a href="#/overview" data-tab="overview">Overview</a>
+                    <a href="#/requests" data-tab="requests">Live requests</a>
+                    <a href="#/metrics" data-tab="metrics">Metrics</a>
+                    <a href="#/settings" data-tab="settings">Settings</a>
+                </nav>
+                <div class="user">
+                    <span class="user-name" id="user-name"></span>
+                    <button class="btn btn-ghost btn-sm" type="button" id="logout">Sign out</button>
+                </div>
+            </div>
+        </header>
+        <main class="page" id="page" aria-live="polite"></main>
+    </div>
+
+    <div class="tooltip" id="tooltip" role="status" hidden></div>
+    <script src="/charts.js"></script>
+    <script src="/app.js"></script>
+</body>
+</html>

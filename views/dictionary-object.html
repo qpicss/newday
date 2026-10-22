@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <%- include('partials/head.html', { title: object.name }) %>
+</head>
+<body>
+    <%- include('partials/app-nav.html', { active: 'dictionary' }) %>
+
+    <main id="main" class="page">
+        <nav class="breadcrumb" aria-label="Breadcrumb">
+            <a href="/developer/dictionary">Data dictionary</a>
+            <%- include('partials/icon.html', { name: 'chevron-right' }) %>
+            <a href="/developer/dictionary?view=objects">Objects</a>
+            <%- include('partials/icon.html', { name: 'chevron-right' }) %>
+            <span aria-current="page"><%= object.name %></span>
+        </nav>
+        <div class="page-header">
+            <div class="user-cell">
+                <span class="app-avatar app-avatar-lg"><%- include('partials/icon.html', { name: 'package', className: 'icon-lg' }) %></span>
+                <div>
+                    <h1 class="mono-name"><%= object.name %></h1>
+                    <div class="badges">
+                        <span class="badge"><%= object.propertyCount %> propert<%= object.propertyCount === 1 ? 'y' : 'ies' %></span>
+                        <% if (object.source === 'import') { %>
+                            <span class="badge badge-primary">Imported<%= sourceApi ? ' from ' + sourceApi.name : '' %></span>
+                        <% } else { %>
+                            <span class="badge">Built in console</span>
+                        <% } %>
+                    </div>
+                </div>
+            </div>
+            <div class="page-actions">
+                <span class="save-state" data-save-state hidden>Unsaved changes</span>
+                <button type="submit" form="objectForm" class="btn btn-primary">Save object</button>
+            </div>
+        </div>
+
+        <form id="objectForm" class="grid-2" data-object-id="<%= object.id %>"
+            data-builder-state="<%= JSON.stringify({ properties: object.properties.map((property) => ({ name: property.name, fieldId: property.fieldId, refObjectId: property.refObjectId, isArray: property.isArray, required: property.required })), choices }) %>">
+            <div class="stack">
+                <section class="card">
+                    <div class="card-header">
+                        <div>
+                            <h2>Properties</h2>
+                            <p>Each property is a field or another object. Changes reach APIs when you update them on their Design tab.</p>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <%- include('partials/object-builder.html', { prefix: 'object', fieldTypes, itemTypes }) %>
+                    </div>
+                </section>
+
+                <section class="card">
+                    <div class="card-header">
+                        <div>
+                            <h2>In an OpenAPI document</h2>
+                            <p>components.schemas entries for this object and the objects it uses, as saved.</p>
+                        </div>
+                    </div>
+                    <pre class="schema-preview"><%= JSON.stringify(object.preview, null, 2) %></pre>
+                </section>
+            </div>
+
+            <aside class="stack">
+                <section class="card">
+                    <div class="card-header"><div><h2>Details</h2></div></div>
+                    <div class="card-body form">
+                        <div class="field">
+                            <label for="objectName">Name</label>
+                            <input class="input mono" type="text" id="objectName" name="name" value="<%= object.name %>" maxlength="100" autocomplete="off" spellcheck="false" required aria-describedby="object-name-hint">
+                            <span id="object-name-hint" class="hint">The schema name in documents. Renaming updates their references when you update them from the dictionary.</span>
+                        </div>
+                        <div class="field">
+                            <label for="objectDescription">Description <span class="label-optional">(optional)</span></label>
+                            <textarea class="textarea" id="objectDescription" name="description" rows="3" maxlength="5000"><%= object.description || '' %></textarea>
+                        </div>
+                        <div class="field">
+                            <label for="objectExtra">Properties not listed</label>
+                            <select class="select" id="objectExtra" name="additionalProperties">
+                                <option value="" <%= object.additionalProperties === false ? '' : 'selected' %>>Allowed</option>
+                                <option value="false" <%= object.additionalProperties === false ? 'selected' : '' %>>Refused (additionalProperties: false)</option>
+                            </select>
+                        </div>
+                        <div id="form-alert" class="alert alert-danger" role="alert" hidden>
+                            <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">Save object</button>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="card">
+                    <div class="card-header"><div><h2>Used in</h2></div></div>
+                    <div class="card-body stack-sm">
+                        <% if (object.usedBy.length) { %>
+                            <div>
+                                <span class="label">Objects</span>
+                                <ul class="link-list">
+                                    <% object.usedBy.forEach((other) => { %><li><a class="mono-name" href="/developer/dictionary/objects/<%= other.id %>"><%= other.name %></a></li><% }); %>
+                                </ul>
+                            </div>
+                        <% } %>
+                        <% if (object.apis.length) { %>
+                            <div>
+                                <span class="label">APIs</span>
+                                <ul class="link-list">
+                                    <% object.apis.forEach((api) => { %><li><a href="/developer/apis/<%= api.id %>/design"><%= api.name %></a></li><% }); %>
+                                </ul>
+                            </div>
+                        <% } %>
+                        <% if (!object.usedBy.length && !object.apis.length) { %>
+                            <p class="muted">Not used yet. Use it as a request or response body on an API's Design tab, or as a property of another object.</p>
+                        <% } %>
+                    </div>
+                </section>
+
+                <section class="card card-danger">
+                    <div class="card-header"><div><h2>Danger zone</h2></div></div>
+                    <div class="card-body danger-row">
+                        <% if (object.usedBy.length) { %>
+                            <p>To delete this object, first remove it from <%= object.usedBy.map((other) => other.name).join(', ') %>.</p>
+                        <% } else { %>
+                            <p>Deleting the object removes it from the dictionary. Its fields stay. APIs using it keep their copy.</p>
+                            <button type="button" class="btn btn-danger btn-sm"
+                                data-action="/api/org/dictionary/objects/<%= object.id %>" data-method="DELETE"
+                                data-confirm-title="Delete <%= object.name %>?"
+                                data-confirm-message="The object is removed from the dictionary. It can't be undone."
+                                data-confirm-label="Delete object" data-danger
+                                data-success="<%= object.name %> was deleted"
+                                data-redirect="/developer/dictionary?view=objects">
+                                <%- include('partials/icon.html', { name: 'trash' }) %>Delete object
+                            </button>
+                        <% } %>
+                    </div>
+                </section>
+            </aside>
+        </form>
+    </main>
+
+    <script src="/js/ui.js"></script>
+    <script src="/js/field-form.js"></script>
+    <script src="/js/object-builder.js"></script>
+    <script src="/js/dictionary-object.js"></script>
+</body>
+</html>

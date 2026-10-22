@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <%- include('partials/head.html', { title: organization ? organization.name : 'Organizations' }) %>
+</head>
+<body>
+    <%- include('partials/app-nav.html', { active: 'organization' }) %>
+    <% const adminCount = members.filter((member) => member.orgRole === 'admin').length; %>
+
+    <main id="main" class="page">
+        <% if (!organization) { %>
+        <div class="page-header">
+            <div>
+                <h1>Organizations</h1>
+                <p class="page-subtitle">Catalogs, APIs and applications live inside an organization.</p>
+            </div>
+        </div>
+        <div class="grid-2">
+            <div class="stack">
+                <section class="card" id="organizations">
+                    <div class="card-header">
+                        <div>
+                            <h2>Your organizations</h2>
+                            <p>Switch between them with the menu at the top. Everything you see follows the organization you work in.</p>
+                        </div>
+                    </div>
+                    <% if (user.memberships.length) { %>
+                        <ul class="operation-list">
+                            <% user.memberships.forEach((membership) => { const current = organization && membership.organizationId === organization.id; %>
+                                <li class="operation">
+                                    <span class="org-switcher-mark" aria-hidden="true"><%= initials(membership.name) %></span>
+                                    <div class="operation-main">
+                                        <span class="cell-primary"><%= membership.name %> <% if (current) { %><span class="badge badge-primary">Current</span><% } %></span>
+                                        <span class="operation-summary"><%= membership.role === 'admin' ? 'Admin' : 'Member' %></span>
+                                    </div>
+                                    <% if (!current) { %>
+                                        <button type="button" class="btn btn-secondary btn-sm" data-switch-org="<%= membership.organizationId %>" data-org-name="<%= membership.name %>">Switch</button>
+                                    <% } %>
+                                    <button type="button" class="btn btn-danger-ghost btn-sm"
+                                        data-action="/api/me/organizations/<%= membership.organizationId %>" data-method="DELETE"
+                                        data-confirm-title="Leave <%= membership.name %>?"
+                                        data-confirm-message="You lose access to its catalogs. Your applications in it stay yours, but can't use its products."
+                                        data-confirm-label="Leave" data-danger
+                                        data-success="You left <%= membership.name %>"
+                                        data-redirect="/developer/organization">Leave</button>
+                                </li>
+                            <% }); %>
+                        </ul>
+                    <% } else { %>
+                        <div class="card-body"><p class="muted">You're not a member of any organization. Accept an invitation<%= canCreateOrganizations ? ', or create your own below' : '' %>.</p></div>
+                    <% } %>
+                    <% if (canCreateOrganizations) { %>
+                        <form id="newOrgForm" class="card-footer-form">
+                            <span class="label">Create an organization</span>
+                            <div class="field-row">
+                                <div class="field">
+                                    <label class="sr-only" for="newOrgName">Organization name</label>
+                                    <input class="input input-sm" type="text" id="newOrgName" name="name" minlength="2" maxlength="100" placeholder="Acme Payments" required>
+                                </div>
+                                <button type="submit" class="btn btn-secondary btn-sm"><%- include('partials/icon.html', { name: 'plus' }) %>Create</button>
+                            </div>
+                            <p class="hint">You become its admin and start working in it.</p>
+                            <div id="new-org-alert" class="alert alert-danger" role="alert" hidden>
+                                <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                            </div>
+                        </form>
+                    <% } %>
+                </section>
+            </div>
+        </div>
+        <% } else { %>
+        <div class="page-header">
+            <div class="user-cell">
+                <span class="app-avatar app-avatar-lg"><%- include('partials/icon.html', { name: 'building', className: 'icon-lg' }) %></span>
+                <div>
+                    <p class="page-eyebrow">Organization</p>
+                    <h1 data-org-name><%= organization.name %></h1>
+                    <p class="page-subtitle"><%= members.length %> member<%= members.length === 1 ? '' : 's' %> · <%= adminCount %> admin<%= adminCount === 1 ? '' : 's' %> · Created <%= formatDate(organization.createdAt) %></p>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <div class="stack">
+                <section class="card" id="members">
+                    <div class="card-header">
+                        <div>
+                            <h2>Members</h2>
+                            <p><%= isOrgAdmin ? 'Change roles or remove people from your organization.' : 'People in your organization.' %></p>
+                        </div>
+                        <label class="search">
+                            <span class="sr-only">Search members</span>
+                            <%- include('partials/icon.html', { name: 'search' }) %>
+                            <input class="input" type="search" placeholder="Search members" data-filter="#members-table">
+                        </label>
+                    </div>
+                    <div class="table-wrap">
+                        <table class="table" id="members-table">
+                            <thead>
+                                <tr>
+                                    <th>Member</th>
+                                    <th>Role</th>
+                                    <th class="hide-sm">Joined</th>
+                                    <% if (isOrgAdmin) { %><th><span class="sr-only">Actions</span></th><% } %>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <% members.forEach((member) => { const isSelf = member.id === user.id; %>
+                                    <tr data-search="<%= (member.name + ' ' + member.email).toLowerCase() %>">
+                                        <td>
+                                            <div class="user-cell">
+                                                <span class="avatar"><%= initials(member.name) %></span>
+                                                <div>
+                                                    <div class="cell-primary"><%= member.name %> <% if (isSelf) { %><span class="badge badge-primary">You</span><% } %></div>
+                                                    <div class="cell-secondary"><%= member.email %></div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <% if (isOrgAdmin && !isSelf) { %>
+                                                <label class="sr-only" for="role-<%= member.id %>">Role for <%= member.name %></label>
+                                                <select class="select select-sm" id="role-<%= member.id %>" data-member-role="<%= member.id %>" data-name="<%= member.name %>">
+                                                    <option value="member" <%= member.orgRole === 'member' ? 'selected' : '' %>>Member</option>
+                                                    <option value="admin" <%= member.orgRole === 'admin' ? 'selected' : '' %>>Admin</option>
+                                                </select>
+                                            <% } else { %>
+                                                <span class="badge <%= member.orgRole === 'admin' ? 'badge-admin' : '' %>"><%= member.orgRole === 'admin' ? 'Admin' : 'Member' %></span>
+                                            <% } %>
+                                        </td>
+                                        <td class="hide-sm muted nowrap"><%= formatDate(member.joinedAt) %></td>
+                                        <% if (isOrgAdmin) { %>
+                                            <td class="actions-cell">
+                                                <% if (!isSelf) { %>
+                                                    <button type="button" class="btn btn-danger-ghost btn-sm"
+                                                        data-action="/api/org/members/<%= member.id %>" data-method="DELETE"
+                                                        data-confirm-title="Remove <%= member.name %>?"
+                                                        data-confirm-message="They lose access to this organization's catalogs. Their account and their other organizations are not affected."
+                                                        data-confirm-label="Remove member" data-danger
+                                                        data-success="<%= member.name %> was removed">
+                                                        Remove
+                                                    </button>
+                                                <% } %>
+                                            </td>
+                                        <% } %>
+                                    </tr>
+                                <% }); %>
+                            </tbody>
+                        </table>
+                        <p class="no-results" data-filter-empty="#members-table" hidden>No members match your search.</p>
+                    </div>
+                </section>
+
+                <% if (isOrgAdmin) { %>
+                    <section class="card">
+                        <div class="card-header">
+                            <div>
+                                <h2>Pending invitations</h2>
+                                <p>Invitations expire after 7 days. Resending creates a new link and cancels the old one.</p>
+                            </div>
+                        </div>
+                        <% if (invitations.length) { %>
+                            <div class="table-wrap">
+                                <table class="table">
+                                    <thead>
+                                        <tr><th>Email</th><th>Role</th><th class="hide-sm">Status</th><th><span class="sr-only">Actions</span></th></tr>
+                                    </thead>
+                                    <tbody>
+                                        <% invitations.forEach((invitation) => { const expired = invitation.expiresAt <= new Date(); %>
+                                            <tr>
+                                                <td><span class="cell-primary"><%= invitation.email %></span></td>
+                                                <td><span class="badge <%= invitation.orgRole === 'admin' ? 'badge-admin' : '' %>"><%= invitation.orgRole === 'admin' ? 'Admin' : 'Member' %></span></td>
+                                                <td class="hide-sm">
+                                                    <% if (expired) { %>
+                                                        <span class="badge badge-warning badge-dot">Expired</span>
+                                                    <% } else { %>
+                                                        <span class="muted nowrap">Expires <%= formatDate(invitation.expiresAt) %></span>
+                                                    <% } %>
+                                                </td>
+                                                <td class="actions-cell">
+                                                    <button type="button" class="btn btn-secondary btn-sm" data-action="/api/org/invitations/<%= invitation.id %>/resend" data-no-reload data-invite-result>
+                                                        <%- include('partials/icon.html', { name: 'refresh' }) %>Resend
+                                                    </button>
+                                                    <button type="button" class="btn btn-danger-ghost btn-sm"
+                                                        data-action="/api/org/invitations/<%= invitation.id %>" data-method="DELETE"
+                                                        data-confirm-title="Revoke invitation?"
+                                                        data-confirm-message="The link sent to <%= invitation.email %> will stop working."
+                                                        data-confirm-label="Revoke" data-danger
+                                                        data-success="Invitation revoked">
+                                                        Revoke
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        <% }); %>
+                                    </tbody>
+                                </table>
+                            </div>
+                        <% } else { %>
+                            <div class="card-body"><p class="muted">No pending invitations.</p></div>
+                        <% } %>
+                    </section>
+                <% } %>
+            </div>
+
+            <div class="stack">
+                <% if (isOrgAdmin) { %>
+                    <section class="card">
+                        <div class="card-header">
+                            <div>
+                                <h2>Invite by email</h2>
+                                <p>New people choose their own name and password. People who already have an account join with their password.</p>
+                            </div>
+                        </div>
+                        <form id="inviteForm" class="card-body form">
+                            <% if (!mailConfigured) { %>
+                                <div class="alert alert-info">
+                                    <%- include('partials/icon.html', { name: 'info' }) %>
+                                    <div><strong>Email isn't set up yet.</strong>You'll get a link to share. Add SMTP settings to send invitations automatically.</div>
+                                </div>
+                            <% } %>
+                            <div class="field">
+                                <label for="inviteEmail">Email</label>
+                                <input class="input" type="email" id="inviteEmail" name="email" placeholder="teammate@company.com" required>
+                            </div>
+                            <div class="field">
+                                <label for="inviteRole">Role</label>
+                                <select class="select" id="inviteRole" name="orgRole">
+                                    <option value="member">Member: browses catalogs and subscribes their apps</option>
+                                    <option value="admin">Admin: also manages catalogs, APIs, products, gateways and people</option>
+                                </select>
+                            </div>
+                            <div id="invite-alert" class="alert alert-danger" role="alert" hidden>
+                                <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                            </div>
+                            <div class="form-actions">
+                                <button type="submit" class="btn btn-primary"><%- include('partials/icon.html', { name: 'mail' }) %>Send invitation</button>
+                            </div>
+                        </form>
+                        <div class="card-body invite-result" id="invite-result" hidden>
+                            <div class="alert alert-success" role="status">
+                                <%- include('partials/icon.html', { name: 'check' }) %><span data-invite-message></span>
+                            </div>
+                            <div class="credential">
+                                <span class="label">Invitation link</span>
+                                <div class="credential-value">
+                                    <code id="invite-link"></code>
+                                    <button type="button" class="copy-btn" data-copy-target="#invite-link" aria-label="Copy invitation link"><%- include('partials/icon.html', { name: 'copy' }) %></button>
+                                </div>
+                                <span class="hint">Anyone with this link can join as the invited email. It expires in 7 days.</span>
+                            </div>
+                            <div class="form-actions">
+                                <button type="button" class="btn btn-secondary" data-invite-done>Done</button>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="card">
+                        <div class="card-header">
+                            <div>
+                                <h2>Add member manually</h2>
+                                <p>An existing account is added right away. For a new one, set a name and a temporary password.</p>
+                            </div>
+                        </div>
+                        <form id="addMemberForm" class="card-body form">
+                            <div class="field">
+                                <label for="memberEmail">Email</label>
+                                <input class="input" type="email" id="memberEmail" name="email" required>
+                            </div>
+                            <div class="field">
+                                <label for="memberName">Full name <span class="label-optional">(new accounts)</span></label>
+                                <input class="input" type="text" id="memberName" name="name" maxlength="100">
+                            </div>
+                            <div class="field">
+                                <label for="memberPassword">Temporary password <span class="label-optional">(new accounts)</span></label>
+                                <div class="input-group">
+                                    <input class="input" type="password" id="memberPassword" name="password" minlength="8" autocomplete="new-password">
+                                    <button type="button" class="input-addon" data-toggle-password="memberPassword" aria-label="Show password">
+                                        <%- include('partials/icon.html', { name: 'eye' }) %>
+                                    </button>
+                                </div>
+                                <span class="hint">At least 8 characters. Share it with them securely.</span>
+                            </div>
+                            <div class="field">
+                                <label for="memberRole">Role</label>
+                                <select class="select" id="memberRole" name="orgRole">
+                                    <option value="member">Member</option>
+                                    <option value="admin">Admin</option>
+                                </select>
+                            </div>
+                            <div id="member-alert" class="alert alert-danger" role="alert" hidden>
+                                <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                            </div>
+                            <div class="form-actions">
+                                <button type="submit" class="btn btn-secondary"><%- include('partials/icon.html', { name: 'user-plus' }) %>Add member</button>
+                            </div>
+                        </form>
+                    </section>
+
+                    <section class="card">
+                        <div class="card-header">
+                            <div>
+                                <h2>Settings</h2>
+                            </div>
+                        </div>
+                        <form id="orgForm" class="card-body form">
+                            <div class="field">
+                                <label for="orgName">Organization name</label>
+                                <input class="input" type="text" id="orgName" name="name" value="<%= organization.name %>" minlength="2" maxlength="100" required>
+                            </div>
+                            <div id="org-alert" class="alert alert-danger" role="alert" hidden>
+                                <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                            </div>
+                            <div class="form-actions">
+                                <button type="submit" class="btn btn-secondary">Save</button>
+                            </div>
+                        </form>
+                    </section>
+                <% } else { %>
+                    <section class="card">
+                        <div class="card-body">
+                            <ul class="tips">
+                                <li><%- include('partials/icon.html', { name: 'info' }) %><span>Only organization admins can invite people and manage catalogs, products, APIs and gateways.</span></li>
+                                <li><%- include('partials/icon.html', { name: 'book' }) %><span>Browse the <a href="/developer/catalogs">catalogs</a> to request API access for your applications.</span></li>
+                            </ul>
+                        </div>
+                    </section>
+                <% } %>
+                <section class="card" id="organizations">
+                    <div class="card-header">
+                        <div>
+                            <h2>Your organizations</h2>
+                            <p>Switch between them with the menu at the top. Everything you see follows the organization you work in.</p>
+                        </div>
+                    </div>
+                    <% if (user.memberships.length) { %>
+                        <ul class="operation-list">
+                            <% user.memberships.forEach((membership) => { const current = organization && membership.organizationId === organization.id; %>
+                                <li class="operation">
+                                    <span class="org-switcher-mark" aria-hidden="true"><%= initials(membership.name) %></span>
+                                    <div class="operation-main">
+                                        <span class="cell-primary"><%= membership.name %> <% if (current) { %><span class="badge badge-primary">Current</span><% } %></span>
+                                        <span class="operation-summary"><%= membership.role === 'admin' ? 'Admin' : 'Member' %></span>
+                                    </div>
+                                    <% if (!current) { %>
+                                        <button type="button" class="btn btn-secondary btn-sm" data-switch-org="<%= membership.organizationId %>" data-org-name="<%= membership.name %>">Switch</button>
+                                    <% } %>
+                                    <button type="button" class="btn btn-danger-ghost btn-sm"
+                                        data-action="/api/me/organizations/<%= membership.organizationId %>" data-method="DELETE"
+                                        data-confirm-title="Leave <%= membership.name %>?"
+                                        data-confirm-message="You lose access to its catalogs. Your applications in it stay yours, but can't use its products."
+                                        data-confirm-label="Leave" data-danger
+                                        data-success="You left <%= membership.name %>"
+                                        data-redirect="/developer/organization">Leave</button>
+                                </li>
+                            <% }); %>
+                        </ul>
+                    <% } else { %>
+                        <div class="card-body"><p class="muted">You're not a member of any organization. Accept an invitation<%= canCreateOrganizations ? ', or create your own below' : '' %>.</p></div>
+                    <% } %>
+                    <% if (canCreateOrganizations) { %>
+                        <form id="newOrgForm" class="card-footer-form">
+                            <span class="label">Create an organization</span>
+                            <div class="field-row">
+                                <div class="field">
+                                    <label class="sr-only" for="newOrgName">Organization name</label>
+                                    <input class="input input-sm" type="text" id="newOrgName" name="name" minlength="2" maxlength="100" placeholder="Acme Payments" required>
+                                </div>
+                                <button type="submit" class="btn btn-secondary btn-sm"><%- include('partials/icon.html', { name: 'plus' }) %>Create</button>
+                            </div>
+                            <p class="hint">You become its admin and start working in it.</p>
+                            <div id="new-org-alert" class="alert alert-danger" role="alert" hidden>
+                                <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                            </div>
+                        </form>
+                    <% } %>
+                </section>
+            </div>
+        </div>
+        <% } %>
+    </main>
+
+    <script src="/js/ui.js"></script>
+    <script src="/js/organization.js"></script>
+</body>
+</html>

@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <%- include('partials/head.html', { title: page.title + ' · Docs' }) %>
+</head>
+<body>
+    <%- include('partials/app-nav.html', { active: 'docs' }) %>
+    <%
+    const roleNames = { siteAdmin: 'a site admin', orgAdmin: 'an admin of ' + (user.organization ? user.organization.name : 'your organization'), member: user.organization ? 'a member of ' + user.organization.name : 'a developer' };
+    %>
+
+    <main id="main" class="page page-wide docs-page">
+        <aside class="docs-sidebar" aria-label="Documentation">
+            <details class="docs-menu" data-docs-menu open>
+                <summary class="docs-menu-toggle"><%- include('partials/icon.html', { name: 'book' }) %>Contents</summary>
+                <nav class="docs-nav">
+                    <label class="search docs-search">
+                        <%- include('partials/icon.html', { name: 'search' }) %>
+                        <span class="sr-only">Filter pages</span>
+                        <input class="input" type="search" id="docsFilter" placeholder="Filter pages" data-filter="#docsNavList" autocomplete="off">
+                    </label>
+                    <div id="docsNavList" class="docs-nav-sections">
+                        <% navigation.forEach((section) => { %>
+                            <div class="docs-nav-section">
+                                <p class="docs-nav-title"><%= section.title %></p>
+                                <ul>
+                                    <% section.pages.forEach((item) => { %>
+                                        <li data-search="<%= (section.title + ' ' + item.title).toLowerCase() %>">
+                                            <a href="<%= item.url %>"<% if (item.slug === page.slug) { %> aria-current="page"<% } %>><%= item.title %></a>
+                                        </li>
+                                    <% }); %>
+                                </ul>
+                            </div>
+                        <% }); %>
+                    </div>
+                    <p class="no-results" data-filter-empty="#docsNavList" hidden>No page matches.</p>
+                </nav>
+            </details>
+        </aside>
+
+        <article class="docs-article">
+            <header class="docs-header">
+                <p class="page-eyebrow"><%= page.section %></p>
+                <h1><%= page.heading %></h1>
+            </header>
+
+            <% if (guide && (page.slug === '' || page.slug === 'users') && guide.url !== '/developer/docs/' + page.slug) { %>
+                <a class="docs-role-callout" href="<%= guide.url %>">
+                    <%- include('partials/icon.html', { name: 'user' }) %>
+                    <span>You are <%= roleNames[guide.role] %>. <strong>Read the <%= guide.title.toLowerCase() %> guide</strong> for everything you can do.</span>
+                    <%- include('partials/icon.html', { name: 'arrow-right' }) %>
+                </a>
+            <% } %>
+
+            <div class="doc-content" data-doc-content>
+                <%- page.html %>
+            </div>
+
+            <nav class="docs-pager" aria-label="Previous and next page">
+                <% if (page.previous) { %>
+                    <a class="docs-pager-link" href="<%= page.previous.url %>"><small>Previous</small><span><%= page.previous.title %></span></a>
+                <% } else { %><span></span><% } %>
+                <% if (page.next) { %>
+                    <a class="docs-pager-link is-next" href="<%= page.next.url %>"><small>Next</small><span><%= page.next.title %></span></a>
+                <% } %>
+            </nav>
+        </article>
+
+        <% if (page.headings.length > 2) { %>
+            <aside class="docs-toc" aria-label="On this page">
+                <p class="docs-nav-title">On this page</p>
+                <ul>
+                    <% page.headings.forEach((heading) => { %>
+                        <li class="docs-toc-<%= heading.depth %>"><a href="#<%= heading.id %>" data-toc-link><%- heading.text %></a></li>
+                    <% }); %>
+                </ul>
+            </aside>
+        <% } %>
+    </main>
+
+    <script src="/js/ui.js"></script>
+    <script src="/js/docs.js"></script>
+</body>
+</html>

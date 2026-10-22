@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <%- include('partials/head.html', { title: 'Source of ' + api.name }) %>
+</head>
+<body>
+    <%- include('partials/app-nav.html', { active: 'catalogs' }) %>
+    <% const fileName = (api.name + '-' + api.version).toLowerCase().replace(/[^a-z0-9.]+/g, '-').replace(/^-|-$/g, '') + '.' + format; %>
+
+    <main id="main" class="page page-wide">
+        <%- include('partials/api-header.html', { api, current: 'source' }) %>
+
+        <section class="card source-card">
+            <div class="source-toolbar">
+                <div class="segmented" role="group" aria-label="Format">
+                    <a class="segmented-btn" href="?format=json"<% if (format === 'json') { %> aria-current="true"<% } %>>JSON</a>
+                    <a class="segmented-btn" href="?format=yaml"<% if (format === 'yaml') { %> aria-current="true"<% } %>>YAML</a>
+                </div>
+                <span class="source-status" id="sourceStatus" role="status">OpenAPI <%= api.openapi %> · <%= api.operationCount %> endpoint<%= api.operationCount === 1 ? '' : 's' %></span>
+                <div class="source-actions">
+                    <button type="button" class="btn btn-ghost btn-sm" id="revertSource" disabled>Undo changes</button>
+                    <button type="button" class="btn btn-secondary btn-sm" id="validateSource"><%- include('partials/icon.html', { name: 'check' }) %>Validate</button>
+                    <button type="button" class="btn btn-primary btn-sm" id="saveSource">Save document</button>
+                </div>
+            </div>
+            <div id="source-alert" class="alert alert-danger source-alert" role="alert" hidden>
+                <%- include('partials/icon.html', { name: 'alert' }) %>
+                <span data-alert-text></span>
+                <button type="button" class="link-button" id="goToLine" hidden>Go to line</button>
+            </div>
+            <div class="source-window">
+                <div class="code-window-bar"><i></i><i></i><i></i><span><%= fileName %></span></div>
+                <div class="source-editor">
+                    <pre class="source-gutter" id="sourceGutter" aria-hidden="true"></pre>
+                    <label for="sourceText" class="sr-only">OpenAPI document (<%= format.toUpperCase() %>)</label>
+                    <textarea class="code-editor source-text" id="sourceText" spellcheck="false" autocapitalize="off" autocomplete="off" wrap="off"
+                        data-api-url="/api/org/apis/<%= api.id %>" data-updated-at="<%= updatedAt %>"><%= content %></textarea>
+                </div>
+            </div>
+            <p class="source-hint hint">Saving replaces the whole document and updates the API's name, version, description and base URL from <code>info</code> and <code>servers</code>. Tab indents, Ctrl+S saves. Gateways get the change at the next push.</p>
+        </section>
+    </main>
+
+    <script src="/js/ui.js"></script>
+    <script src="/js/api-source.js"></script>
+</body>
+</html>

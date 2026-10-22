@@ -1,0 +1,74 @@
+# A two-node gateway cluster on one Docker host, with Redis for shared rate limits.
+#
+#   1. Put the credentials file downloaded from the console next to this file as credentials.json
+#   2. Set GATEWAY_MANAGEMENT_URL below to the console's gateway link (shown on the gateway page)
+#   3. docker compose up -d                 (nodes + redis)
+#      docker compose --profile lb up -d    (nodes + redis + nginx load balancer on port 443)
+#   The nodes register themselves and pull their configuration. To push instead, remove
+#   GATEWAY_MANAGEMENT_URL and add https://<host>:9443 and https://<host>:9444 in the console.
+#
+# Both nodes use the same credentials: together they are one gateway. The connection handler
+# port below (8443) must match the handler configured in the console.
+# Admin UI: https://<host>:9445 and https://<host>:9446 (sign in with an org admin account).
+name: oauth-gateway
+
+x-node: &node
+  image: oauth-server-gateway:1.0.0
+  build: ..
+  restart: unless-stopped
+  depends_on: [redis]
+
+x-env: &env
+  GATEWAY_LOG_LEVEL: info
+  GATEWAY_POLICY_WORKERS: "2"
+  GATEWAY_MANAGEMENT_URL: https://console.example.com:3443
+  GATEWAY_REDIS_URL: redis://redis:6379
+
+services:
+  gateway-1:
+    <<: *node
+    environment:
+      <<: *env
+      GATEWAY_NODE_NAME: gateway-1
+    ports:
+      - "9443:9443"   # management (mTLS), only needed for push mode
+      - "9445:9445"   # admin UI
+      - "9080:9080"   # health checks and Prometheus /metrics
+      - "8443:8443"   # connection handler
+    volumes:
+      - ./credentials.json:/etc/oauth-gateway/credentials.json:ro
+      - gateway-1-data:/data
+
+  gateway-2:
+    <<: *node
+    environment:
+      <<: *env
+      GATEWAY_NODE_NAME: gateway-2
+    ports:
+      - "9444:9443"
+      - "9446:9445"
+      - "9081:9080"
+      - "8444:8443"
+    volumes:
+      - ./credentials.json:/etc/oauth-gateway/credentials.json:ro
+      - gateway-2-data:/data
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+
+  # TCP load balancer: TLS stays end to end and is terminated by the gateway nodes.
+  load-balancer:
+    image: nginx:1.27-alpine
+    profiles: ["lb"]
+    restart: unless-stopped
+    ports:
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on: [gateway-1, gateway-2]
+
+volumes:
+  gateway-1-data:
+  gateway-2-data:

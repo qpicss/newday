@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <%- include('partials/head.html', { title: (status ? status + ' response' : 'Request body') + ' of ' + operation.method.toUpperCase() + ' ' + operation.path }) %>
+</head>
+<body>
+    <%- include('partials/app-nav.html', { active: 'catalogs' }) %>
+
+    <main id="main" class="page page-wide">
+        <%- include('partials/api-header.html', { api, current: 'design' }) %>
+
+        <div class="content-schema-head">
+            <a class="link-button" href="<%= designUrl %>">Back to the endpoint</a>
+            <p>
+                <span class="method method-<%= operation.method %>"><%= operation.method %></span>
+                <code class="mono-name"><%= operation.path %></code>
+                <span class="muted"><%= status ? 'Response ' + status : 'Request body' %> · </span><code class="content-type"><%= contentType %></code>
+            </p>
+        </div>
+
+        <div class="schema-layout schema-layout-single" id="contentSchema" data-state="<%= JSON.stringify(state) %>">
+            <%- include('partials/schema-editor.html', { name: state.name, showSave: true, fields: state.fields, fieldTypes, itemTypes }) %>
+        </div>
+
+        <% if (linkedField) { %>
+            <section class="card content-schema-field">
+                <div class="card-body stack-sm">
+                    <p>
+                        <%- include('partials/icon.html', { name: 'database' }) %>
+                        Copied from the dictionary field <a class="mono-name" href="/developer/dictionary/fields/<%= linkedField.id %>"><%= linkedField.name %></a>.
+                        <% if (linkedField.current) { %>It matches the field.<% } else { %><strong>The field has changed since it was copied.</strong><% } %>
+                        A change saved here stays in this document unless you also update the field.
+                    </p>
+                    <label class="checkbox-row"><input type="checkbox" id="updateField"> Also save the change to <span class="mono-name"><%= linkedField.name %></span> in the dictionary</label>
+                </div>
+            </section>
+        <% } %>
+        <section class="card content-schema-field">
+            <form class="card-body form" id="moveForm">
+                <div>
+                    <h2>Move to the document's schemas</h2>
+                    <p class="muted">It becomes a named schema in components.schemas, listed on the Schemas tab, and this <%= status ? 'response' : 'body' %> refers to it. Other endpoints can then use it too. Save your changes first.</p>
+                </div>
+                <div class="field-row">
+                    <div class="field">
+                        <label for="moveName">Schema name</label>
+                        <input class="input mono" type="text" id="moveName" name="name" maxlength="100" value="<%= linkedField ? linkedField.name : '' %>" placeholder="Chosen for you" autocomplete="off" spellcheck="false">
+                    </div>
+                </div>
+                <div id="move-alert" class="alert alert-danger" role="alert" hidden>
+                    <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-secondary btn-sm">Move to schemas</button>
+                </div>
+            </form>
+        </section>
+    </main>
+
+    <script src="/js/ui.js"></script>
+    <script src="/js/field-form.js"></script>
+    <script src="/js/schema-editor.js"></script>
+    <script src="/js/content-schema.js"></script>
+</body>
+</html>

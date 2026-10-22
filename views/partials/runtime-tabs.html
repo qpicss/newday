@@ -1,0 +1,13 @@
+<%#
+  Tabs shared by the pages under "Gateways": the gateways, and the policies and connections they run.
+  Takes: current ('gateways' | 'policies' | 'connections').
+%>
+<nav class="page-tabs" aria-label="Gateway settings">
+    <% [
+        { key: 'gateways', href: '/developer/gateways', label: 'Gateways', icon: 'server' },
+        { key: 'policies', href: '/developer/policies', label: 'Policies', icon: 'file-code' },
+        { key: 'connections', href: '/developer/connections', label: 'Connections', icon: 'link' },
+    ].forEach((tab) => { %>
+        <a class="page-tab" href="<%= tab.href %>"<% if (tab.key === current) { %> aria-current="page"<% } %>><%- include('icon.html', { name: tab.icon, className: 'icon-sm' }) %><%= tab.label %></a>
+    <% }); %>
+</nav>

@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <%- include('partials/head.html', { title: 'Import OpenAPI' }) %>
+</head>
+<body>
+    <%- include('partials/app-nav.html', { active: 'catalogs' }) %>
+
+    <main id="main" class="page">
+        <nav class="breadcrumb" aria-label="Breadcrumb">
+            <a href="/developer/catalogs">Catalogs</a>
+            <%- include('partials/icon.html', { name: 'chevron-right' }) %>
+            <a href="/developer/catalogs/<%= catalog.id %>"><%= catalog.name %></a>
+            <%- include('partials/icon.html', { name: 'chevron-right' }) %>
+            <span aria-current="page">Import OpenAPI</span>
+        </nav>
+        <div class="page-header">
+            <div>
+                <h1>Import an OpenAPI file</h1>
+                <p class="page-subtitle">Upload an OpenAPI 3.0 or 3.1 document into the <%= catalog.name %> catalog. The name, version, servers and endpoints are read from the file.</p>
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <section class="card">
+                <form id="importForm" class="card-body form" data-catalog-id="<%= catalog.id %>">
+                    <label class="dropzone" for="specFile" data-dropzone>
+                        <span class="empty-icon"><%- include('partials/icon.html', { name: 'upload', className: 'icon-lg' }) %></span>
+                        <strong data-file-label>Choose a file or drag it here</strong>
+                        <span class="hint">.json, .yaml or .yml, up to 2 MB</span>
+                        <input class="sr-only" type="file" id="specFile" accept=".json,.yaml,.yml,application/json,application/yaml,text/yaml">
+                    </label>
+
+                    <div class="field">
+                        <label for="content">Or paste the document</label>
+                        <textarea class="textarea mono" id="content" name="content" rows="12" spellcheck="false" placeholder="openapi: 3.0.3&#10;info:&#10;  title: Orders API&#10;  version: 1.0.0&#10;paths:&#10;  /orders:&#10;    get:&#10;      summary: List orders"></textarea>
+                    </div>
+
+                    <div id="form-alert" class="alert alert-danger" role="alert" hidden>
+                        <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                    </div>
+                    <div class="form-actions">
+                        <a href="/developer/catalogs/<%= catalog.id %>" class="btn btn-secondary">Cancel</a>
+                        <button type="submit" class="btn btn-primary"><%- include('partials/icon.html', { name: 'upload' }) %>Import API</button>
+                    </div>
+                </form>
+            </section>
+
+            <aside class="card">
+                <div class="card-header">
+                    <div>
+                        <h2>What's supported</h2>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <ul class="tips">
+                        <li><%- include('partials/icon.html', { name: 'check' }) %><span><strong>OpenAPI 3.0 and 3.1</strong> in JSON or YAML.</span></li>
+                        <li><%- include('partials/icon.html', { name: 'check' }) %><span>The <strong>whole document is kept</strong>, including schemas and descriptions. You can download it again any time.</span></li>
+                        <li><%- include('partials/icon.html', { name: 'alert' }) %><span><strong>Swagger 2.0</strong> isn't supported. Convert it to OpenAPI 3 first.</span></li>
+                    </ul>
+                </div>
+            </aside>
+        </div>
+    </main>
+
+    <script src="/js/ui.js"></script>
+    <script src="/js/api-import.js"></script>
+</body>
+</html>

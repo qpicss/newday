@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <%- include('partials/head.html', { title: organization.name }) %>
+</head>
+<body>
+    <%- include('partials/app-nav.html', { active: 'admin' }) %>
+    <%
+    const orgUrl = '/api/admin/organizations/' + organization.id;
+    const counts = organization.counts;
+    const deletable = !counts.catalogs && !counts.apis && !counts.products && !counts.gateways && !counts.applications;
+    const isCurrent = user.organizationId === organization.id;
+    %>
+
+    <main id="main" class="page">
+        <nav class="breadcrumb" aria-label="Breadcrumb">
+            <a href="/developer/admin">Admin</a>
+            <%- include('partials/icon.html', { name: 'chevron-right' }) %>
+            <a href="/developer/admin/organizations">Organizations</a>
+            <%- include('partials/icon.html', { name: 'chevron-right' }) %>
+            <span aria-current="page"><%= organization.name %></span>
+        </nav>
+        <div class="page-header">
+            <div class="user-cell">
+                <span class="org-switcher-mark org-mark-lg" aria-hidden="true"><%= initials(organization.name) %></span>
+                <div>
+                    <p class="page-eyebrow">Organization</p>
+                    <h1 data-org-name><%= organization.name %></h1>
+                    <p class="page-subtitle"><%= counts.members %> member<%= counts.members === 1 ? '' : 's' %> · <%= counts.catalogs %> catalog<%= counts.catalogs === 1 ? '' : 's' %> · <%= counts.gateways %> gateway<%= counts.gateways === 1 ? '' : 's' %> · <%= counts.applications %> application<%= counts.applications === 1 ? '' : 's' %> · Created <%= formatDate(organization.createdAt) %></p>
+                </div>
+            </div>
+            <div class="page-actions">
+                <% if (isCurrent) { %>
+                    <a class="btn btn-primary" href="/developer/catalogs"><%- include('partials/icon.html', { name: 'book' }) %>Open its catalogs</a>
+                <% } else { %>
+                    <button type="button" class="btn btn-primary" data-switch-org="<%= organization.id %>" data-org-name="<%= organization.name %>" data-redirect="/developer/catalogs">
+                        <%- include('partials/icon.html', { name: 'arrow-right' }) %>Work in this organization
+                    </button>
+                <% } %>
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <div class="stack">
+                <section class="card" id="catalogs">
+                    <div class="card-header">
+                        <div>
+                            <h2>Catalogs</h2>
+                            <p>Each catalog with its products and APIs. "Manage" switches you into the organization as admin.</p>
+                        </div>
+                    </div>
+                    <% if (organization.catalogs.length) { %>
+                        <ul class="admin-catalogs">
+                            <% organization.catalogs.forEach((catalog) => { const published = catalog.products.filter((product) => product.status === 'published').length; %>
+                                <li class="admin-catalog">
+                                    <div class="admin-catalog-head">
+                                        <span class="app-avatar"><%- include('partials/icon.html', { name: 'book', className: 'icon-sm' }) %></span>
+                                        <div class="operation-main">
+                                            <span class="cell-primary"><%= catalog.name %></span>
+                                            <span class="operation-summary"><%= catalog.products.length %> product<%= catalog.products.length === 1 ? '' : 's' %> (<%= published %> published) · <%= catalog.apis.length %> API<%= catalog.apis.length === 1 ? '' : 's' %> · <%= catalog.gateways.length ? 'served by ' + catalog.gateways.map((gateway) => gateway.name).join(', ') : 'no gateway' %></span>
+                                        </div>
+                                        <% if (isCurrent) { %>
+                                            <a class="btn btn-secondary btn-sm" href="/developer/catalogs/<%= catalog.id %>">Manage</a>
+                                        <% } else { %>
+                                            <button type="button" class="btn btn-secondary btn-sm" data-switch-org="<%= organization.id %>" data-org-name="<%= organization.name %>" data-redirect="/developer/catalogs/<%= catalog.id %>">Manage</button>
+                                        <% } %>
+                                    </div>
+                                    <% if (catalog.products.length || catalog.apis.length) { %>
+                                        <div class="admin-catalog-items">
+                                            <% if (catalog.products.length) { %>
+                                                <div><span class="label">Products</span><div class="badges"><% catalog.products.forEach((product) => { %><span class="badge badge-dot <%= product.status === 'published' ? 'badge-success' : '' %>"><%= product.name %></span><% }); %></div></div>
+                                            <% } %>
+                                            <% if (catalog.apis.length) { %>
+                                                <div><span class="label">APIs</span><div class="badges"><% catalog.apis.forEach((api) => { %><span class="badge"><%= api.name %></span><% }); %></div></div>
+                                            <% } %>
+                                        </div>
+                                    <% } %>
+                                </li>
+                            <% }); %>
+                        </ul>
+                    <% } else { %>
+                        <div class="card-body"><p class="muted">No catalogs yet.</p></div>
+                    <% } %>
+                </section>
+
+                <section class="card" id="members">
+                    <div class="card-header">
+                        <div>
+                            <h2>Members</h2>
+                            <p>The organization always keeps at least one admin.</p>
+                        </div>
+                    </div>
+                    <% if (organization.members.length) { %>
+                        <div class="table-wrap">
+                            <table class="table">
+                                <thead><tr><th>Member</th><th>Role</th><th class="hide-sm">Joined</th><th><span class="sr-only">Actions</span></th></tr></thead>
+                                <tbody>
+                                    <% organization.members.forEach((member) => { const memberUrl = orgUrl + '/members/' + member.id; %>
+                                        <tr>
+                                            <td>
+                                                <div class="user-cell">
+                                                    <span class="avatar"><%= initials(member.name) %></span>
+                                                    <div>
+                                                        <a class="cell-primary" href="/developer/admin/users/<%= member.id %>"><%= member.name %></a>
+                                                        <div class="cell-secondary"><%= member.email %><%= member.role === 'admin' ? ' · platform admin' : '' %></div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <label class="sr-only" for="role-<%= member.id %>">Role of <%= member.name %></label>
+                                                <select class="select select-sm" id="role-<%= member.id %>" data-membership-role="<%= memberUrl %>" data-name="<%= member.name %>">
+                                                    <option value="member" <%= member.orgRole === 'member' ? 'selected' : '' %>>Member</option>
+                                                    <option value="admin" <%= member.orgRole === 'admin' ? 'selected' : '' %>>Admin</option>
+                                                </select>
+                                            </td>
+                                            <td class="hide-sm muted nowrap"><%= formatDate(member.joinedAt) %></td>
+                                            <td class="actions-cell">
+                                                <button type="button" class="btn btn-danger-ghost btn-sm"
+                                                    data-action="<%= memberUrl %>" data-method="DELETE"
+                                                    data-confirm-title="Remove <%= member.name %>?"
+                                                    data-confirm-message="They lose access to <%= organization.name %>. Their account and other organizations stay."
+                                                    data-confirm-label="Remove" data-danger
+                                                    data-success="<%= member.name %> was removed">Remove</button>
+                                            </td>
+                                        </tr>
+                                    <% }); %>
+                                </tbody>
+                            </table>
+                        </div>
+                    <% } else { %>
+                        <div class="card-body"><p class="muted">No members. Add an existing account below.</p></div>
+                    <% } %>
+                    <form id="addMemberForm" class="card-footer-form" data-org-url="<%= orgUrl %>">
+                        <span class="label">Add an existing account</span>
+                        <div class="field-row">
+                            <div class="field">
+                                <label class="sr-only" for="memberEmail">Email</label>
+                                <input class="input input-sm" type="email" id="memberEmail" name="email" placeholder="person@company.com" required>
+                            </div>
+                            <div class="field field-narrow">
+                                <label class="sr-only" for="memberRole">Role</label>
+                                <select class="select select-sm" id="memberRole" name="orgRole">
+                                    <option value="member">Member</option>
+                                    <option value="admin">Admin</option>
+                                </select>
+                            </div>
+                            <button type="submit" class="btn btn-secondary btn-sm"><%- include('partials/icon.html', { name: 'user-plus' }) %>Add</button>
+                        </div>
+                        <p class="hint">No account yet? <a href="/developer/admin/users/new">Create the user</a> in this organization.</p>
+                        <div id="member-alert" class="alert alert-danger" role="alert" hidden>
+                            <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                        </div>
+                    </form>
+                </section>
+            </div>
+
+            <div class="stack">
+                <section class="card">
+                    <div class="card-header">
+                        <div><h2>Gateways</h2></div>
+                    </div>
+                    <% if (organization.gateways.length) { %>
+                        <ul class="operation-list">
+                            <% organization.gateways.forEach((gateway) => { %>
+                                <li class="operation">
+                                    <span class="app-avatar"><%- include('partials/icon.html', { name: 'server', className: 'icon-sm' }) %></span>
+                                    <div class="operation-main">
+                                        <span class="cell-primary"><%= gateway.name %></span>
+                                        <span class="operation-summary"><%= gateway.nodes %> node<%= gateway.nodes === 1 ? '' : 's' %> · <%= gateway.catalog ? 'serves ' + gateway.catalog.name : 'not attached' %></span>
+                                    </div>
+                                </li>
+                            <% }); %>
+                        </ul>
+                    <% } else { %>
+                        <div class="card-body"><p class="muted">No gateways.</p></div>
+                    <% } %>
+                </section>
+
+                <section class="card">
+                    <div class="card-header">
+                        <div><h2>Settings</h2></div>
+                    </div>
+                    <form id="organizationForm" class="card-body form" data-org-url="<%= orgUrl %>">
+                        <div class="field">
+                            <label for="organizationName">Name</label>
+                            <input class="input" type="text" id="organizationName" name="name" value="<%= organization.name %>" minlength="2" maxlength="100" required>
+                        </div>
+                        <div id="org-alert" class="alert alert-danger" role="alert" hidden>
+                            <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-secondary">Save</button>
+                        </div>
+                    </form>
+                </section>
+
+                <section class="card card-danger">
+                    <div class="card-header">
+                        <div><h2>Danger zone</h2></div>
+                    </div>
+                    <div class="card-body danger-row">
+                        <p><%= deletable ? 'Removes the organization, its memberships, invitations, policies and connections.' : 'Delete its catalogs, APIs, products, gateways and applications first.' %></p>
+                        <button type="button" class="btn btn-danger btn-sm" <%= deletable ? '' : 'disabled' %>
+                            data-action="<%= orgUrl %>" data-method="DELETE"
+                            data-confirm-title="Delete <%= organization.name %>?"
+                            data-confirm-message="Its members keep their accounts. This can't be undone."
+                            data-confirm-label="Delete organization" data-danger
+                            data-success="<%= organization.name %> was deleted"
+                            data-redirect="/developer/admin/organizations">
+                            <%- include('partials/icon.html', { name: 'trash' }) %>Delete organization
+                        </button>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </main>
+
+    <script src="/js/ui.js"></script>
+    <script src="/js/admin-organizations.js"></script>
+</body>
+</html>

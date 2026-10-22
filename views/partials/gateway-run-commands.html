@@ -1,0 +1,24 @@
+<%#
+  Commands that start a gateway node, one tab per shell. ui.js shows the tab that fits the viewer's system.
+  Takes: commands ([{ id, shell, label, hint, text }]), credentialsFile (file name).
+%>
+<div class="shell-tabs" data-shell-tabs>
+    <div class="segmented" role="tablist" aria-label="Where the node runs">
+        <% commands.forEach((command, index) => { %>
+            <button type="button" class="segmented-btn" role="tab" id="<%= command.id %>-tab"
+                data-shell="<%= command.shell %>" aria-controls="<%= command.id %>-panel"
+                aria-selected="<%= index === 0 ? 'true' : 'false' %>"><%= command.label %></button>
+        <% }); %>
+    </div>
+    <% commands.forEach((command, index) => { %>
+        <div class="shell-panel" role="tabpanel" id="<%= command.id %>-panel" aria-labelledby="<%= command.id %>-tab"
+            data-shell-panel="<%= command.shell %>" <%= index === 0 ? '' : 'hidden' %>>
+            <% if (command.hint) { %><p class="hint"><%= command.hint %></p><% } %>
+            <div class="code-snippet">
+                <pre><code id="<%= command.id %>"><%= command.text %></code></pre>
+                <button type="button" class="copy-btn" data-copy-target="#<%= command.id %>" aria-label="Copy the <%= command.label %> command"><%- include('icon.html', { name: 'copy' }) %></button>
+            </div>
+        </div>
+    <% }); %>
+    <p class="hint">If Docker reports that <code><%= credentialsFile %></code> is a directory, the file wasn't there when you ran the command and Docker created an empty folder in its place. Delete that folder, download the credentials again and rerun the command.</p>
+</div>

@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <%- include('partials/head.html', { title: 'Requests · ' + gateway.name }) %>
+</head>
+<body>
+    <%- include('partials/app-nav.html', { active: 'gateways' }) %>
+
+    <main id="main" class="page">
+        <nav class="breadcrumb" aria-label="Breadcrumb">
+            <a href="/developer/gateways">Gateways</a>
+            <%- include('partials/icon.html', { name: 'chevron-right' }) %>
+            <a href="/developer/gateways/<%= gateway.id %>"><%= gateway.name %></a>
+            <%- include('partials/icon.html', { name: 'chevron-right' }) %>
+            <span aria-current="page">Live requests</span>
+        </nav>
+        <div class="page-header">
+            <div>
+                <h1>Live requests</h1>
+                <p class="page-subtitle">The latest requests kept in memory by each node of <%= gateway.name %>. Headers and bodies are never recorded.</p>
+            </div>
+            <div class="page-actions">
+                <span class="live-indicator" id="liveIndicator" aria-live="polite">Paused</span>
+                <button type="button" class="btn btn-secondary" id="toggleLive" aria-pressed="false">Follow live</button>
+                <button type="button" class="btn btn-primary" id="refresh"><%- include('partials/icon.html', { name: 'refresh' }) %>Refresh</button>
+            </div>
+        </div>
+
+        <% if (!gateway.requestLog.enabled) { %>
+            <div class="alert alert-warning page-alert" role="status">
+                <%- include('partials/icon.html', { name: 'alert' }) %>
+                <div><strong>The request log is off for this gateway.</strong> Turn it on under Observability on the <a href="/developer/gateways/<%= gateway.id %>#observability">gateway page</a> and push.</div>
+            </div>
+        <% } %>
+
+        <section class="card" id="requests" data-requests-url="/api/org/gateways/<%= gateway.id %>/requests">
+            <form class="filter-bar" id="filters">
+                <div class="field">
+                    <label for="filterStatus">Status</label>
+                    <select class="select select-sm" id="filterStatus" name="status">
+                        <option value="">All</option>
+                        <option value="2xx">2xx success</option>
+                        <option value="3xx">3xx redirect</option>
+                        <option value="4xx">4xx client error</option>
+                        <option value="5xx">5xx server error</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="filterApi">API</label>
+                    <select class="select select-sm" id="filterApi" name="api">
+                        <option value="">All APIs</option>
+                        <% apiNames.forEach((name) => { %><option value="<%= name %>"><%= name %></option><% }); %>
+                    </select>
+                </div>
+                <div class="field field-grow">
+                    <label for="filterText">Search</label>
+                    <input class="input input-sm" type="search" id="filterText" name="text" placeholder="Path, request ID, trace ID or error" maxlength="200">
+                </div>
+            </form>
+            <div class="table-wrap">
+                <table class="table">
+                    <thead>
+                        <tr><th>Time</th><th>Request</th><th>Status</th><th class="num">Duration</th><th class="hide-sm">API</th><th class="hide-sm">Application</th><th class="hide-sm">Node</th></tr>
+                    </thead>
+                    <tbody id="requestRows">
+                        <tr><td colspan="7" class="muted">Loading requests…</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <p class="card-footer-form hint" id="nodeNotes" hidden></p>
+        </section>
+
+        <section class="card request-detail" id="requestDetail" hidden aria-live="polite">
+            <div class="card-header">
+                <div>
+                    <h2 data-detail-title>Request</h2>
+                    <p>Use the trace ID to find the same request in your tracing backend: the gateway forwards it upstream in <code>traceparent</code>.</p>
+                </div>
+                <button type="button" class="btn btn-ghost btn-sm" data-close-detail>Close</button>
+            </div>
+            <div class="card-body"><pre data-detail-body></pre></div>
+        </section>
+    </main>
+
+    <script src="/js/ui.js"></script>
+    <script src="/js/gateway-requests.js"></script>
+</body>
+</html>

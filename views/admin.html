@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <%- include('partials/head.html', { title: 'Admin Dashboard' }) %>
+</head>
+<body>
+    <%- include('partials/app-nav.html', { active: 'admin' }) %>
+    <%
+    const adminCount = allUsers.filter((managedUser) => managedUser.role === 'admin').length;
+    const verifiedCount = allUsers.filter((managedUser) => managedUser.isVerified).length;
+    const filteredOrganization = organizations.find((organization) => organization.id === organizationId);
+    %>
+
+    <main id="main" class="page">
+        <div class="page-header">
+            <div>
+                <p class="page-eyebrow">Administration</p>
+                <h1>Admin Dashboard</h1>
+                <p class="page-subtitle">Every user and organization on the platform. Open an organization to manage its members and catalogs.</p>
+            </div>
+            <div class="page-actions">
+                <a href="/developer/admin/organizations" class="btn btn-secondary"><%- include('partials/icon.html', { name: 'building' }) %>Organizations</a>
+                <a href="/developer/admin/applications" class="btn btn-secondary"><%- include('partials/icon.html', { name: 'grid' }) %>All applications</a>
+                <a href="/developer/admin/profiles" class="btn btn-secondary"><%- include('partials/icon.html', { name: 'users' }) %>Directory</a>
+                <a href="/developer/admin/users/new" class="btn btn-primary"><%- include('partials/icon.html', { name: 'plus' }) %>Create user</a>
+            </div>
+        </div>
+
+        <section class="stats" aria-label="User summary">
+            <div class="card stat">
+                <span class="stat-icon"><%- include('partials/icon.html', { name: 'users' }) %></span>
+                <div><div class="stat-label">Total users</div><div class="stat-value"><%= allUsers.length %></div></div>
+            </div>
+            <div class="card stat">
+                <span class="stat-icon is-indigo"><%- include('partials/icon.html', { name: 'shield' }) %></span>
+                <div><div class="stat-label">Platform admins</div><div class="stat-value"><%= adminCount %></div></div>
+            </div>
+            <a class="card stat stat-link" href="/developer/admin/organizations">
+                <span class="stat-icon"><%- include('partials/icon.html', { name: 'building' }) %></span>
+                <div><div class="stat-label">Organizations</div><div class="stat-value"><%= organizations.length %></div></div>
+            </a>
+            <a class="card stat stat-link" href="/developer/admin/applications">
+                <span class="stat-icon is-indigo"><%- include('partials/icon.html', { name: 'grid' }) %></span>
+                <div><div class="stat-label">Applications</div><div class="stat-value"><%= totalApplications %></div></div>
+            </a>
+            <div class="card stat">
+                <span class="stat-icon is-success"><%- include('partials/icon.html', { name: 'badge-check' }) %></span>
+                <div><div class="stat-label">Verified</div><div class="stat-value"><%= verifiedCount %></div></div>
+            </div>
+            <div class="card stat">
+                <span class="stat-icon is-warning"><%- include('partials/icon.html', { name: 'alert' }) %></span>
+                <div><div class="stat-label">Awaiting verification</div><div class="stat-value"><%= allUsers.length - verifiedCount %></div></div>
+            </div>
+        </section>
+
+        <section class="card">
+            <div class="card-header">
+                <div>
+                    <h2><%= filteredOrganization ? 'Members of ' + filteredOrganization.name : 'Users' %></h2>
+                    <p>Open a user to manage their profile, organizations, password and applications.</p>
+                </div>
+                <form class="inline-select" method="GET" action="/developer/admin">
+                    <label class="sr-only" for="organizationFilter">Organization</label>
+                    <select class="select select-sm" id="organizationFilter" name="organizationId" data-auto-submit>
+                        <option value="">All organizations</option>
+                        <% organizations.forEach((organization) => { %><option value="<%= organization.id %>" <%= organization.id === organizationId ? 'selected' : '' %>><%= organization.name %></option><% }); %>
+                    </select>
+                    <noscript><button type="submit" class="btn btn-secondary btn-sm">Filter</button></noscript>
+                </form>
+                <label class="search">
+                    <span class="sr-only">Search users</span>
+                    <%- include('partials/icon.html', { name: 'search' }) %>
+                    <input class="input" type="search" placeholder="Search by name or email" data-filter="#users-table">
+                </label>
+            </div>
+            <div class="table-wrap">
+                <table class="table" id="users-table">
+                    <thead>
+                        <tr>
+                            <th>User</th>
+                            <th>Role</th>
+                            <th class="hide-sm">Organizations</th>
+                            <th class="hide-sm">Applications</th>
+                            <th class="hide-sm">Status</th>
+                            <th class="hide-sm">Joined</th>
+                            <th><span class="sr-only">Actions</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% users.forEach((managedUser) => { %>
+                            <tr data-search="<%= (managedUser.name + ' ' + managedUser.email).toLowerCase() %>">
+                                <td>
+                                    <div class="user-cell">
+                                        <span class="avatar"><%= initials(managedUser.name) %></span>
+                                        <div>
+                                            <div class="cell-primary">
+                                                <a href="/developer/admin/users/<%= managedUser.id %>"><%= managedUser.name %></a>
+                                                <% if (managedUser.id === user.id) { %><span class="badge badge-primary">You</span><% } %>
+                                            </div>
+                                            <div class="cell-secondary"><%= managedUser.email %></div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td><span class="badge <%= managedUser.role === 'admin' ? 'badge-admin' : '' %>"><%= managedUser.role === 'admin' ? 'Platform admin' : 'User' %></span></td>
+                                <td class="hide-sm"><div class="badges"><% if (managedUser.organizations.length) { %><% managedUser.organizations.forEach((organization) => { %><a class="badge <%= organization.role === 'admin' ? 'badge-admin' : '' %>" href="/developer/admin/organizations/<%= organization.id %>"><%= organization.name %><%= organization.role === 'admin' ? ' · admin' : '' %></a><% }); %><% } else { %><span class="muted">None</span><% } %></div></td>
+                                <td class="hide-sm">
+                                    <% const appCount = appCounts.get(managedUser.id) || 0; %>
+                                    <a href="/developer/admin/users/<%= managedUser.id %>#applications" class="badge"><%= appCount %> app<%= appCount === 1 ? '' : 's' %></a>
+                                </td>
+                                <td class="hide-sm">
+                                    <% if (managedUser.isVerified) { %>
+                                        <span class="badge badge-success badge-dot">Verified</span>
+                                    <% } else { %>
+                                        <span class="badge badge-warning badge-dot">Unverified</span>
+                                    <% } %>
+                                </td>
+                                <td class="hide-sm muted"><%= formatDate(managedUser.createdAt) %></td>
+                                <td class="actions-cell">
+                                    <a href="/developer/admin/users/<%= managedUser.id %>" class="btn btn-secondary btn-sm">Manage</a>
+                                    <% if (managedUser.id !== user.id) { %>
+                                        <button type="button" class="btn btn-danger-ghost btn-sm btn-icon" data-delete-user="<%= managedUser.id %>" data-name="<%= managedUser.name %>" aria-label="Delete <%= managedUser.name %>" title="Delete">
+                                            <%- include('partials/icon.html', { name: 'trash' }) %>
+                                        </button>
+                                    <% } %>
+                                </td>
+                            </tr>
+                        <% }); %>
+                    </tbody>
+                </table>
+                <p class="no-results" data-filter-empty="#users-table" <%= users.length ? 'hidden' : '' %>>No users match.</p>
+            </div>
+        </section>
+    </main>
+
+    <script src="/js/ui.js"></script>
+    <script src="/js/admin.js"></script>
+</body>
+</html>

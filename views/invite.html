@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <%- include('partials/head.html', { title: 'Join organization' }) %>
+</head>
+<body>
+    <div class="auth-layout">
+        <%- include('partials/auth-aside.html') %>
+
+        <main id="main" class="auth-main">
+            <div class="auth-card">
+                <a class="brand auth-mobile-brand" href="/">
+                    <span class="brand-mark"><%- include('partials/icon.html', { name: 'logo' }) %></span>
+                    OAuth Server
+                </a>
+
+                <% if (invitation) { %>
+                    <span class="hero-badge"><%- include('partials/icon.html', { name: 'building', className: 'icon-sm' }) %><%= invitation.organization.name %></span>
+                    <h1>Join <%= invitation.organization.name %></h1>
+                    <p class="muted">You've been invited as <%= invitation.orgRole === 'admin' ? 'an admin' : 'a member' %>. <%= hasAccount ? 'Enter the password of your account to join. You keep your other organizations.' : 'Set up your account to accept.' %></p>
+
+                    <div id="form-alert" class="alert alert-danger" role="alert" hidden>
+                        <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                    </div>
+
+                    <form id="inviteForm" class="form" data-token="<%= token %>">
+                        <div class="field">
+                            <label for="email">Email</label>
+                            <input class="input" type="email" id="email" value="<%= invitation.email %>" disabled>
+                        </div>
+                        <% if (!hasAccount) { %>
+                            <div class="field">
+                                <label for="name">Full name</label>
+                                <input class="input" type="text" id="name" name="name" autocomplete="name" maxlength="100" required autofocus>
+                            </div>
+                        <% } %>
+                        <div class="field">
+                            <label for="password">Password</label>
+                            <div class="input-group">
+                                <input class="input" type="password" id="password" name="password" autocomplete="<%= hasAccount ? 'current-password' : 'new-password' %>" minlength="8" aria-describedby="password-hint" required>
+                                <button type="button" class="input-addon" data-toggle-password="password" aria-label="Show password">
+                                    <%- include('partials/icon.html', { name: 'eye' }) %>
+                                </button>
+                            </div>
+                            <span id="password-hint" class="hint"><%= hasAccount ? 'The password you sign in with.' : 'Use at least 8 characters.' %></span>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-block"><%= hasAccount ? 'Join ' + invitation.organization.name : 'Accept invitation' %></button>
+                    </form>
+                <% } else { %>
+                    <div class="empty-icon"><%- include('partials/icon.html', { name: 'mail', className: 'icon-lg' }) %></div>
+                    <h1>Invitation unavailable</h1>
+                    <p class="muted">This invitation link is invalid, has already been used, or has expired. Ask your organization admin to send a new one.</p>
+                    <p class="auth-switch"><a href="/login">Go to sign in</a></p>
+                <% } %>
+            </div>
+        </main>
+    </div>
+
+    <script src="/js/ui.js"></script>
+    <% if (invitation) { %><script src="/js/invite.js"></script><% } %>
+</body>
+</html>
