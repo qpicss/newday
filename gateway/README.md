@@ -1,10 +1,11 @@
 # OAuth Server gateway
 
-The runtime that serves API traffic for OAuth Server. It is a separate Node.js 20 project with no database. Everything it serves comes from the management console. The console either pushes the configuration to the node, or the node pulls it. Both directions use mutual TLS.
+The runtime that serves API traffic for OAuth Server. It is a separate Node.js 20 project with no database. Everything it serves comes from the management console. By default the console connects to the node: it checks that the node is alive, sends it the configuration and collects its usage. Alternatively the node connects to the console and pulls the configuration. Both directions use mutual TLS.
 
 ```
                   management console (this repo)
-     push: PUT /v1/config ▼            ▲ pull: register, GET /v1/config, heartbeat, usage, admin sign-in
+     push: status every 30 s,          ▲ pull: register, GET /v1/config, heartbeat, usage, admin sign-in
+     PUT /v1/config, usage, tasks ▼    │
                   mTLS: both sides use certificates from the console's self-signed CA
                     │                  │
  client ──► connection handler ──► route ──► token ──► subscription ──► rate limit ──► port policy ──► API policy ──► upstream
@@ -24,7 +25,10 @@ The runtime that serves API traffic for OAuth Server. It is a separate Node.js 2
   - Without Redis, each node enforces `rate limit ÷ number of nodes`.
   - With `GATEWAY_REDIS_URL`, the nodes share exact counters. If Redis is unreachable, they fall back to their local share.
 - **Push or pull.**
-  - Push mode: the console pushes to each node's management port (9443).
+  - Push mode, the default: the console connects to each node's management port (9443). It needs no route from the node to the console, so it suits nodes in the cloud managed from an office or private network.
+    - The console checks every push node every 30 seconds (`GATEWAY_MONITOR_MS`) and shows it as **Unreachable** when it doesn't answer.
+    - A node that answers with an older configuration than the deployed one, for example after it was recreated with an empty data volume, gets the deployed configuration again. Changes that were never pushed are not sent this way.
+    - The console also collects usage, the request log and flow tests from push nodes, renews their certificates and signs admins in to their admin UI.
   - Pull mode: the node is started with `GATEWAY_MANAGEMENT_URL`, the console's link address. It registers itself, polls for configuration with an ETag, sends heartbeats and reports usage. It needs no inbound port from the console.
   - With **auto-push** on, the console pushes shortly after any change.
 - **Connection handlers.** These are the ports for API traffic, HTTP or HTTPS. A push opens, changes or closes ports without restarting the process. A handler can have a **port policy** that runs before the API's policy for every request on the port.
@@ -59,10 +63,47 @@ docker run -d --name gateway-1 --restart unless-stopped \
 
 ## Run on Ubuntu 22.04 / 24.04
 
+### Files to copy to the server
+
+The gateway folder is self-contained. Copy these to the server, keeping the folder layout:
+
+```
+gateway/
+├── package.json
+├── package-lock.json
+├── src/                          the runtime
+├── ui/                           the admin UI
+└── deploy/
+    ├── install.sh                the installer
+    ├── gateway.env.example       becomes /etc/oauth-gateway/gateway.env
+    └── oauth-gateway.service     the systemd unit
+<name>-credentials.json           next to the gateway folder, downloaded from the gateway's page
+```
+
+- Leave out `node_modules/`, which may have been built for another system, and `test/`. The installer runs `npm ci`, so the server needs internet access for npm, and for NodeSource if Node.js 20 isn't installed.
+- The credentials file holds the gateway's private key. Copy it securely, for example with `scp`, and delete other copies.
+- `README.md` is optional. The Docker files (`Dockerfile`, `deploy/docker-compose.yml`, `deploy/nginx.conf`) aren't needed for this install.
+- If you copied the files from Windows without Git and bash reports `$'\r': command not found`, run `sed -i 's/\r$//' gateway/deploy/install.sh`. Copies from Windows also lose the execute bit; the first command below sets it again.
+
+For example, from the repository root:
+
 ```bash
-sudo ./deploy/install.sh
+ssh user@server mkdir -p gateway/deploy
+scp -r gateway/package.json gateway/package-lock.json gateway/src gateway/ui user@server:gateway/
+scp gateway/deploy/install.sh gateway/deploy/gateway.env.example gateway/deploy/oauth-gateway.service user@server:gateway/deploy/
+scp <name>-credentials.json user@server:
+```
+
+Then, on the server, run the commands shown on the gateway's page under **Linux service**, from the folder holding `gateway/` and the credentials file. They look like this:
+
+### Install
+
+```bash
+chmod +x gateway/deploy/install.sh
+sudo ./gateway/deploy/install.sh
 sudo install -m 600 -o oauth-gateway <name>-credentials.json /etc/oauth-gateway/credentials.json
 echo "GATEWAY_MANAGEMENT_URL=https://console.example.com:3443" | sudo tee -a /etc/oauth-gateway/gateway.env   # pull mode
+echo "GATEWAY_NODE_NAME=node-1" | sudo tee -a /etc/oauth-gateway/gateway.env
 sudo systemctl enable --now oauth-gateway
 journalctl -u oauth-gateway -f
 ```
@@ -75,9 +116,9 @@ journalctl -u oauth-gateway -f
 
 1. On the gateway's page, choose a catalog and add a connection handler.
 2. Download the credentials file and start the node with it.
-3. Connect the node:
-   - **Pull mode:** set `GATEWAY_MANAGEMENT_URL` to the console link shown on the gateway page. The node appears under Nodes by itself.
-   - **Push mode:** add the node's management address, e.g. `https://10.0.0.5:9443`, and click **Push configuration**.
+3. Connect the node. Step 3 of the gateway's setup checklist offers both ways:
+   - **The console connects to the node (push, recommended):** start the node without `GATEWAY_MANAGEMENT_URL`, publishing port 9443, and open 9443 from the console to the node. Then enter the node's address, e.g. `https://203.0.113.10:9443`. The console checks it at once and reports whether it answered. Click **Push configuration** to send it the configuration.
+   - **The node connects to the console (pull):** set `GATEWAY_MANAGEMENT_URL` to the console link shown on the gateway page. The node appears under Nodes by itself. The address must be reachable from the node: a console that runs on `localhost` must set `GATEWAY_LINK_PUBLIC_URL` (and open its link port) for nodes on other machines. The page warns when the link address is `localhost`.
 
 The console accepts only certificates that name this gateway (`CN=gateway:<id>`) and are not revoked. The node accepts only the console's certificate (`CN=oauth-server-management`). The console's CA issues both.
 
@@ -116,7 +157,9 @@ Everything is built in. Each part can be turned on or off per gateway in the con
 
 Open `https://<node>:9445`. The server uses the gateway's certificate, so trust the management CA, or accept the certificate once.
 
-- **Sign-in.** Sign in with a console account that is an **org admin of the organization that owns the gateway**. The node checks the email and password with the console over the mTLS link and never stores them.
+- **Sign-in.** Only console accounts that are **org admins of the organization that owns the gateway** (or platform admins) get in. There are two ways:
+  - **Open admin UI** on the gateway page in the console (on a node, or in its addresses). The console signs a one-time ticket that is valid for 60 seconds and opens the admin UI with it. The node checks the ticket with the token key from its configuration, so this works for push nodes that can't reach the console. The node needs a configuration first.
+  - Email and password on the sign-in page. The node checks them with the console over the mTLS link and never stores them, so this needs a node that can reach the console (pull mode).
 - **Sessions.** Sessions last 8 hours, in an `HttpOnly`, `Secure`, `SameSite=Strict` cookie.
 - **Pages:**
   - an overview: configuration, handlers, APIs, connections and their circuit state, certificate and off-load status;

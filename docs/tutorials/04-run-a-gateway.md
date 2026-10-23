@@ -54,7 +54,9 @@ Download the credentials file from the gateway page and save it in the folder yo
 
 ## 5. Start a node
 
-In **Add a node**, the console shows the exact `docker run` command for your shell (PowerShell, Command Prompt, or macOS and Linux). It looks like this:
+Step 3 of the setup checklist asks how the console and the node talk. The node runs on the console's own machine here, so choose **The node connects to the console**. For a node on another server, for example in the cloud, keep the default **The console connects to the node**: start the node with the command shown there, open port 9443 from the console to it and enter its address. The console then checks it every 30 seconds.
+
+The console shows the exact `docker run` command for your shell (PowerShell, Command Prompt, or macOS and Linux). It looks like this:
 
 ```bash
 docker run -d --name local-1 --restart unless-stopped \
@@ -68,6 +70,8 @@ docker run -d --name local-1 --restart unless-stopped \
 ```
 
 Copy it from the page rather than from here: it has your file name and ports. Run it in the folder with the credentials file.
+
+> **Running the node on another server?** Docker needs the image there too: copy the `gateway` folder and build it on that server. To run it without Docker, choose the **Linux service** tab. It lists the files to copy before you run the installer; the [gateway reference](../../gateway/README.md#files-to-copy-to-the-server) has the same list, with `scp` commands.
 
 Within a few seconds the node appears under **Nodes** as connected. If it doesn't, check its log:
 

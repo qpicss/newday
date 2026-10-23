@@ -704,6 +704,9 @@ router.get('/gateways/:id', requireOrgAdmin, async (req, res) => {
     credentialsFile: gatewayNodes.credentialsFileOf(described),
     dockerLinkUrl: gatewayNodes.dockerLinkUrlOf(linkInfo.url),
     firstCommands: gatewayNodes.runCommands(described, waiting || { name: nextName, mode: 'pull', portOffset: 0 }, linkInfo, { idPrefix: 'setup-command' }),
+    // The first node started for the console to connect to (push): no console address, port 9443 published.
+    pushCommands: gatewayNodes.runCommands(described, { name: nextName, mode: 'push', url: 'https://node', portOffset: 0 }, linkInfo, { idPrefix: 'setup-push-command' }),
+    linkLocal: gatewayNodes.isLocalUrl(linkInfo.url),
     nodeCommands: Object.fromEntries(described.nodes.map((node) => [node.id, gatewayNodes.runCommands(described, node, linkInfo, { idPrefix: `node-command-${node.id}` })])),
     nextNode: { name: nextName, sameHost, sameHostOffset: gatewayNodes.nextPortOffset(described, sameHost, { pull: true }) },
   };

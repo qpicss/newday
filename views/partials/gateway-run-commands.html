@@ -14,6 +14,18 @@
         <div class="shell-panel" role="tabpanel" id="<%= command.id %>-panel" aria-labelledby="<%= command.id %>-tab"
             data-shell-panel="<%= command.shell %>" <%= index === 0 ? '' : 'hidden' %>>
             <% if (command.hint) { %><p class="hint"><%= command.hint %></p><% } %>
+            <% if (command.files) { %>
+                <div class="alert alert-info server-files" role="note">
+                    <%- include('icon.html', { name: 'alert' }) %>
+                    <div>
+                        <strong>Copy these to the server first</strong>
+                        <ul>
+                            <% command.files.forEach((file) => { %><li><code><%= file.path %></code>: <%= file.note %></li><% }); %>
+                        </ul>
+                        <span>Leave out <code>node_modules/</code> and <code>test/</code>: the installer runs <code>npm ci</code>, which needs internet access. <a href="/developer/docs/gateway#files-to-copy-to-the-server">Installation guide</a></span>
+                    </div>
+                </div>
+            <% } %>
             <div class="code-snippet">
                 <pre><code id="<%= command.id %>"><%= command.text %></code></pre>
                 <button type="button" class="copy-btn" data-copy-target="#<%= command.id %>" aria-label="Copy the <%= command.label %> command"><%- include('icon.html', { name: 'copy' }) %></button>

@@ -68,6 +68,7 @@ The link is an mTLS listener that pull-mode gateways call to register, fetch con
 | `GATEWAY_AUTO_PUSH` | `true` | `false` turns auto-push off for every gateway, whatever their own setting |
 | `GATEWAY_AUTO_PUSH_DELAY_MS` | `2000` | How long after the last change an auto-push waits |
 | `GATEWAY_USAGE_COLLECT_MS` | `60000` | How often usage is collected from push nodes; `0` turns it off. Pull nodes report usage themselves. |
+| `GATEWAY_MONITOR_MS` | `30000` | How often the console checks every push node: it records whether the node answers and sends the deployed configuration again to a node that reports an older one. `0` turns it off. |
 
 ## Rate limits on sign-in and tokens
 

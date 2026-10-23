@@ -12,7 +12,7 @@
     const adminEnabled = obs.adminUi.enabled !== false;
     const pullMode = link.enabled && link.url;
     // Commands, the credentials file name and the suggested next node come from services/gatewayNodes.js.
-    const { credentialsFile, dockerLinkUrl, firstCommands: runCommands, nodeCommands, nextNode } = nodeTools;
+    const { credentialsFile, dockerLinkUrl, firstCommands: runCommands, pushCommands, linkLocal, nodeCommands, nextNode } = nodeTools;
     const nodeNames = new Map(gateway.nodes.map((node) => [node.id, node.name]));
     const clusterHandler = gateway.handlers.find((handler) => !handler.nodeId);
     const examplePort = clusterHandler ? clusterHandler.port : 9445;
@@ -26,6 +26,8 @@
             if (!node.configVersion) return { label: 'Waiting for first pull', className: '' };
             return node.configVersion === gateway.version ? { label: 'In sync', className: 'badge-success' } : { label: 'Pulling changes', className: 'badge-warning' };
         }
+        // The console checks push nodes on a timer; an error without a failed push means no answer.
+        if (node.lastError && !['warning', 'error'].includes(node.lastPushStatus)) return { label: 'Unreachable', className: 'badge-danger' };
         return nodeStatus(node.lastPushStatus);
     };
     %>
@@ -69,7 +71,7 @@
         </div>
 
         <% if (setupIncomplete) { %>
-            <%- include('partials/gateway-setup.html', { gateway, gatewayUrl, catalogs, runCommands, credentialsFile, pullMode, dockerLinkUrl }) %>
+            <%- include('partials/gateway-setup.html', { gateway, gatewayUrl, catalogs, runCommands, pushCommands, linkLocal, linkUrl: link.url, nextNode, credentialsFile, pullMode, dockerLinkUrl }) %>
         <% } %>
 
         <% if (gateway.problems.length) { %>
@@ -159,6 +161,12 @@
                                             <% } else if (node.lastPushAt) { %><div class="cell-secondary">Pushed <%= formatDate(node.lastPushAt) %></div><% } %>
                                             <% if (node.configVersion) { %><div class="cell-secondary hide-sm">Config <code><%= node.configVersion %></code><%= node.softwareVersion ? ' · gateway ' + node.softwareVersion : '' %></div><% } %>
                                         </div>
+                                        <% if (where.admin && (node.lastSeenAt || node.url)) { %>
+                                            <button type="button" class="btn btn-ghost btn-sm btn-icon" data-open-admin="<%= gatewayUrl %>/nodes/<%= node.id %>/admin-ticket"
+                                                aria-label="Open the admin UI of <%= node.name %>" title="Open admin UI">
+                                                <%- include('partials/icon.html', { name: 'external' }) %>
+                                            </button>
+                                        <% } %>
                                         <button type="button" class="btn btn-danger-ghost btn-sm btn-icon"
                                             data-action="<%= gatewayUrl %>/nodes/<%= node.id %>" data-method="DELETE"
                                             data-confirm-title="Remove <%= node.name %>?"
@@ -246,7 +254,8 @@
                                         <li>
                                             <span class="address-label">Admin UI</span>
                                             <span class="address-value"><a class="mono-sm" href="<%= where.admin %>" target="_blank" rel="noopener"><%= where.admin %></a><button type="button" class="copy-btn" data-copy="<%= where.admin %>" aria-label="Copy the admin UI address of <%= node.name %>"><%- include('partials/icon.html', { name: 'copy' }) %></button></span>
-                                            <span class="hint">Sign in with your console account. Its certificate comes from the management CA.</span>
+                                            <button type="button" class="btn btn-secondary btn-sm" data-open-admin="<%= gatewayUrl %>/nodes/<%= node.id %>/admin-ticket"><%- include('partials/icon.html', { name: 'external' }) %>Open admin UI</button>
+                                            <span class="hint">Opens it signed in with your console account, through a one-time link that works even when the node can't reach the console. Its certificate comes from the management CA.</span>
                                         </li>
                                     <% } %>
                                     <% if (where.management) { %>
@@ -505,9 +514,9 @@
                         </form>
                     <% } %>
                     <details class="card-footer-form node-push" <%= pullMode ? '' : 'open' %>>
-                        <summary class="label">Add a node that is already running, by its management address (push)</summary>
+                        <summary class="label">Add a node the console connects to, by its address (push)</summary>
                         <form id="nodeForm" data-gateway-url="<%= gatewayUrl %>">
-                            <p class="hint">For a node started without <code>GATEWAY_MANAGEMENT_URL</code> that publishes port 9443. The console sends it the configuration when you push.</p>
+                            <p class="hint">For a node started without <code>GATEWAY_MANAGEMENT_URL</code> that publishes port 9443, for example on a cloud server that can't reach the console. The console checks it every 30 seconds, sends it the configuration when you push, and sends it again if the node comes back with an older one.</p>
                             <div class="field-row">
                                 <div class="field field-narrow">
                                     <label for="nodeName">Node name</label>

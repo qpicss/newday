@@ -91,6 +91,7 @@ The gateway is a separate Node project with its own `package.json`, Dockerfile, 
   - It contains published products, APIs (operations, upstream, `basePath`, policy, `connectionId`), approved subscriptions, handlers (ports and port policies), connections (secrets decrypted), observability, admin and `management.linkUrl`.
   - Push nodes get it from `services/gatewayPush.js` (`PUT /v1/config`). Pull nodes fetch it from the console link (`services/linkServer.js`, mTLS on `GATEWAY_LINK_PORT`, default 3443, started by `server.js`).
   - The config hash drives the "changes not deployed" state.
+  - Push is the default the setup checklist offers (the console needs no route from the node). `services/gatewayMonitor.js` (started by `server.js`, `GATEWAY_MONITOR_MS`, default 30000) checks every push node's `/v1/status`, records `lastSeenAt`/`lastError` (shown as Unreachable), and resends the deployed config (`pushToNode`) to a node reporting an older version, but only while the built hash still equals `lastPushedHash`. Adding a push node checks it at once (`check` in the response).
   - Change the config shape in both places: `services/gatewayConfig.js` and `gateway/src/runtime.js` (gateway validation).
   - `redactConfig` must hide every secret in the preview.
 - **Nodes and handlers:** `services/gatewayNodes.js` builds every node's addresses and start command.
@@ -106,7 +107,7 @@ The gateway is a separate Node project with its own `package.json`, Dockerfile, 
   - Management's client cert and the link server cert are `CN=oauth-server-management`.
   - Revoked fingerprints are refused by both the link and pushes.
 - **Consumer auth:** `POST /oauth/token` (client credentials) issues RS256 JWTs (`utils/gatewayTokens.js`). The gateway verifies them with the key from the config and checks the approved subscription.
-- **Admin UI:** the node serves it on port 9445 with its own certificate. Sign-in is verified by the console (`POST /v1/admin-login` on the link): only org admins of the gateway's organization are accepted.
+- **Admin UI:** the node serves it on port 9445 with its own certificate. Two sign-ins, both for org admins of the gateway's organization only: a one-time ticket from `POST /api/org/gateways/:id/nodes/:nodeId/admin-ticket` (RS256 with the token key, audience `oauth-server-gateway-admin`, 60 s, bound to the gateway, checked by `gateway/src/adminTicket.js` with the config's token keys, so it works without the link), or email and password verified by the console (`POST /v1/admin-login` on the link, pull nodes only).
 - **Usage and observability:** the gateway's `observability/` modules hold metrics, the request log, off-load and usage. Usage reaches `UsageRecord` (daily) through the link, or through `services/usageCollector.js` for push nodes. `services/usage.js` `usageSeries` feeds `views/partials/usage-card.html`. Its charts come from `gateway/ui/charts.js`, served to the console as `/js/charts.js`.
 - **Policies:**
   - Policy code runs in `gateway/src/policy.js` inside worker threads (`policyRunner.js` / `policyWorker.js`). It exports a function or `{ onRequest, onResponse }`.

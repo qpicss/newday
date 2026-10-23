@@ -1965,6 +1965,11 @@ a.badge:hover { border-color: var(--border-strong); color: var(--text); text-dec
 .shell-tabs .code-snippet { margin-top: 0; }
 .shell-panel { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
 .shell-panel[hidden] { display: none; }
+.server-files ul { margin: 6px 0; padding-left: 18px; display: grid; gap: 2px; }
+.server-files code { overflow-wrap: anywhere; }
+[data-setup-panel] { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+[data-setup-panel][hidden] { display: none; }
+.setup-mode { margin-bottom: 4px; }
 
 .segmented {
     display: inline-flex;

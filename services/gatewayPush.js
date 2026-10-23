@@ -96,6 +96,25 @@ const callNode = (node, gatewayId, pki, { method, path, body, revoked = new Set(
 
 const pushNodesOf = (gateway) => gateway.nodes.filter((node) => node.mode !== 'pull' && node.url);
 
+// Sends a built configuration to one push node and records the outcome on the node.
+const pushToNode = async (node, gatewayId, config, { pki, revoked, pushedAt = new Date() }) => {
+  const result = await callNode(node, gatewayId, pki, { method: 'PUT', path: '/v1/config', body: config, revoked });
+  const failedHandlers = result.ok ? (result.body?.handlers || []).filter((handler) => !handler.listening) : [];
+  const status = !result.ok ? 'error' : failedHandlers.length ? 'warning' : 'ok';
+  const error = !result.ok
+    ? result.error
+    : failedHandlers.map((handler) => `${handler.name}: ${handler.error}`).join('; ') || null;
+
+  await node.update({
+    lastPushAt: pushedAt,
+    lastPushStatus: status,
+    lastError: error,
+    configVersion: result.ok ? result.body?.version : node.configVersion,
+    ...(result.fingerprint && { certificateFingerprint: result.fingerprint, lastSeenAt: pushedAt }),
+  });
+  return { id: node.id, name: node.name, url: node.url, status, error, handlers: result.body?.handlers || [] };
+};
+
 // Builds the configuration and sends it to every push node. `gateway` must include nodes and handlers.
 const pushGateway = async (gateway) => {
   const { config, hash, problems, summary } = await buildGatewayConfig(gateway);
@@ -121,21 +140,7 @@ const pushGateway = async (gateway) => {
         handlers: [],
       };
     }
-    const result = await callNode(node, gateway.id, pki, { method: 'PUT', path: '/v1/config', body: config, revoked });
-    const failedHandlers = result.ok ? (result.body?.handlers || []).filter((handler) => !handler.listening) : [];
-    const status = !result.ok ? 'error' : failedHandlers.length ? 'warning' : 'ok';
-    const error = !result.ok
-      ? result.error
-      : failedHandlers.map((handler) => `${handler.name}: ${handler.error}`).join('; ') || null;
-
-    await node.update({
-      lastPushAt: pushedAt,
-      lastPushStatus: status,
-      lastError: error,
-      configVersion: result.ok ? result.body?.version : node.configVersion,
-      ...(result.fingerprint && { certificateFingerprint: result.fingerprint, lastSeenAt: pushedAt }),
-    });
-    return { id: node.id, name: node.name, url: node.url, status, error, handlers: result.body?.handlers || [] };
+    return pushToNode(node, gateway.id, config, { pki, revoked, pushedAt });
   }));
 
   const ok = nodes.every((node) => node.status !== 'error');
@@ -145,11 +150,11 @@ const pushGateway = async (gateway) => {
   return { ok, problems: [], nodes, version: config.version, summary };
 };
 
-// Asks every push node for its current state; pull nodes are reported from their last heartbeat.
-const gatewayStatus = async (gateway) => {
+// Asks every push node for its current state (`only`: just these nodes); pull nodes are reported from their last heartbeat.
+const gatewayStatus = async (gateway, { only = gateway.nodes } = {}) => {
   const pki = await getPki();
   const revoked = await revokedFingerprints(gateway.id);
-  return Promise.all(gateway.nodes.map(async (node) => {
+  return Promise.all(only.map(async (node) => {
     if (node.mode === 'pull' || !node.url) {
       const recent = node.lastSeenAt && Date.now() - new Date(node.lastSeenAt).getTime() < 120000;
       return {
@@ -282,6 +287,9 @@ const testFlowOnGateway = async (gateways, payload) => {
 module.exports = {
   isGatewayRunning,
   pushGateway,
+  pushToNode,
+  pushNodesOf,
+  revokedFingerprints,
   gatewayStatus,
   renewGatewayCredentials,
   collectUsage,

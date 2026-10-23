@@ -27,6 +27,9 @@ const {
   recentRequests,
 } = require('../services/gatewayPush');
 const { gatewayIncludes } = require('../services/gatewayQueries');
+const { checkGateway } = require('../services/gatewayMonitor');
+const { signAdminTicket } = require('../utils/gatewayTokens');
+const { getPki } = require('../utils/pki');
 const { usageSeries } = require('../services/usage');
 const { gatewaySetup } = require('../utils/gatewaySetup');
 const {
@@ -534,9 +537,37 @@ const addNode = async (req, res) => {
     const clash = hostPortClash(gateway, [...gateway.nodes, fields], gateway.handlers);
     if (clash) return res.status(409).json({ error: clash });
     const node = await GatewayNode.create(fields);
-    res.status(201).json({ node: serializeNode(node), addresses: nodeAddresses(gateway, node) });
+    // The console connects to a push node: check it now instead of waiting for the monitor.
+    let check = null;
+    if (!isPull(node)) {
+      try {
+        const [result] = await checkGateway(gateway, { only: [node] });
+        check = result ? { reachable: result.reachable, error: result.error, resent: result.resent } : null;
+      } catch {
+        check = { reachable: false, error: 'The node could not be checked' };
+      }
+    }
+    res.status(201).json({ node: serializeNode(node), addresses: nodeAddresses(gateway, node), check });
   } catch (error) {
     sendServerError(res, error, 'Failed to add node');
+  }
+};
+
+// A one-time ticket that signs the current org admin in to a node's admin UI, and the address that
+// uses it. The node checks the ticket itself, so this works for nodes that can't reach the console.
+const adminTicket = async (req, res) => {
+  try {
+    const gateway = await findOrgGateway(req);
+    if (!gateway) return res.status(404).json({ error: 'Gateway not found' });
+    const node = gateway.nodes.find((item) => item.id === req.params.nodeId);
+    if (!node) return res.status(404).json({ error: 'Node not found' });
+    const address = nodeAddresses(gateway, node).admin;
+    if (!address) return res.status(409).json({ error: 'The admin UI is turned off for this gateway. Turn it on under Observability, then push the configuration.' });
+    const { tokenKey } = await getPki();
+    const ticket = signAdminTicket({ user: req.user, organization: req.user.organization, gateway, node }, tokenKey);
+    res.json({ url: `${address}/#ticket=${encodeURIComponent(ticket)}`, expiresIn: 60 });
+  } catch (error) {
+    sendServerError(res, error, 'Failed to open the admin UI');
   }
 };
 
@@ -802,6 +833,7 @@ module.exports = {
   addNode,
   updateNode,
   removeNode,
+  adminTicket,
   addHandler,
   updateHandler,
   removeHandler,

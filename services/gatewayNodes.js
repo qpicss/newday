@@ -88,6 +88,9 @@ const nextNodeName = (gateway) => {
   return `${slugOf(gateway)}-node-${index}`;
 };
 
+// True when the console link address only works on the console's own machine.
+const isLocalUrl = (value) => ['localhost', '127.0.0.1', '::1'].includes(hostOfUrl(value || ''));
+
 // Inside a container "localhost" is the container itself, so it reaches the console through the Docker host.
 const dockerLinkUrlOf = (linkUrl) => {
   try {
@@ -101,6 +104,14 @@ const dockerLinkUrlOf = (linkUrl) => {
   }
   return linkUrl;
 };
+
+// What to copy to a server before running deploy/install.sh there: [{ path, note }].
+const serverFiles = (credentialsFile) => [
+  { path: 'gateway/package.json, gateway/package-lock.json', note: 'the gateway project and its locked dependencies' },
+  { path: 'gateway/src/, gateway/ui/', note: 'the runtime and the admin UI' },
+  { path: 'gateway/deploy/install.sh, gateway.env.example, oauth-gateway.service', note: 'the installer, default settings and systemd unit' },
+  { path: credentialsFile, note: 'next to the gateway folder. It holds the private key: copy it securely and delete other copies' },
+];
 
 // Commands that start `node` (a saved node, or { name, portOffset, mode } for the first one), one
 // per shell: [{ id, shell, label, hint, text }]. `link`: { enabled, url } of the console link.
@@ -125,18 +136,20 @@ const runCommands = (gateway, node, link, { idPrefix = 'run' } = {}) => {
     .map((arg) => (arg === null ? `-v "${folder}${credentialsFile}:/etc/oauth-gateway/credentials.json:ro"` : arg))
     .join(` ${continuation}\n  `);
   const linux = [
+    'chmod +x gateway/deploy/install.sh',
     'sudo ./gateway/deploy/install.sh',
     `sudo install -m 600 -o oauth-gateway ${credentialsFile} /etc/oauth-gateway/credentials.json`,
     `echo "GATEWAY_NODE_NAME=${node.name}" | sudo tee -a /etc/oauth-gateway/gateway.env`,
     ...(pull ? [`echo "GATEWAY_MANAGEMENT_URL=${link.url}" | sudo tee -a /etc/oauth-gateway/gateway.env`] : []),
     'sudo systemctl enable --now oauth-gateway',
   ].join('\n');
-  const linuxHint = `Without Docker: on the server, from a copy of the gateway folder, with ${credentialsFile} next to it.${offset ? ' A Linux service listens on the ports as configured, without the offset, so run it on a server of its own.' : ''}`;
+  const linuxHint = `Without Docker, on Ubuntu 22.04 or 24.04: run these in the folder that holds the gateway folder and ${credentialsFile}.${offset ? ' A Linux service listens on the ports as configured, without the offset, so run it on a server of its own.' : ''}`;
+  const dockerHint = `On another machine, build the image there first: copy the gateway folder and run docker build -t ${IMAGE} gateway.`;
   return [
-    { id: `${idPrefix}-powershell`, shell: 'powershell', label: 'Windows PowerShell', text: docker('`', '${PWD}\\') },
-    { id: `${idPrefix}-cmd`, shell: 'cmd', label: 'Command Prompt', text: docker('^', '%cd%\\') },
-    { id: `${idPrefix}-bash`, shell: 'bash', label: 'macOS / Linux', text: docker('\\', '$PWD/') },
-    { id: `${idPrefix}-linux`, shell: 'systemd', label: 'Linux service', hint: linuxHint, text: linux },
+    { id: `${idPrefix}-powershell`, shell: 'powershell', label: 'Windows PowerShell', hint: dockerHint, text: docker('`', '${PWD}\\') },
+    { id: `${idPrefix}-cmd`, shell: 'cmd', label: 'Command Prompt', hint: dockerHint, text: docker('^', '%cd%\\') },
+    { id: `${idPrefix}-bash`, shell: 'bash', label: 'macOS / Linux', hint: dockerHint, text: docker('\\', '$PWD/') },
+    { id: `${idPrefix}-linux`, shell: 'systemd', label: 'Linux service', hint: linuxHint, files: serverFiles(credentialsFile), text: linux },
   ];
 };
 
@@ -148,6 +161,7 @@ module.exports = {
   NODE_NAME,
   slugOf,
   credentialsFileOf,
+  isLocalUrl,
   nodeHost,
   handlersOf,
   isPull,

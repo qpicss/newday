@@ -1,12 +1,14 @@
-// Admin UI for the gateway (HTTPS, gateway certificate). People sign in with the email and password
-// of an org admin of the organization that owns this gateway; the gateway checks them with the
-// management console over the mTLS link and never stores passwords.
+// Admin UI for the gateway (HTTPS, gateway certificate). Org admins of the organization that owns
+// this gateway sign in either with a one-time ticket from the console's gateway page (checked here
+// with the configuration's token keys, so it works without the link) or with their email and
+// password, which the gateway checks with the console over the mTLS link and never stores.
 const crypto = require('crypto');
 const fs = require('fs');
 const https = require('https');
 const path = require('path');
 const { readBody, sendJson } = require('./http');
 const { LinkError } = require('./link');
+const { TicketError } = require('./adminTicket');
 
 const UI_DIR = path.join(__dirname, '..', 'ui');
 const STATIC = {
@@ -64,6 +66,19 @@ const createAdminServer = ({ credentials, logger, actions, isEnabled }) => {
     });
   };
 
+  const countFailure = (ip, record) => {
+    const entry = record && record.resetAt > Date.now() ? record : { count: 0, resetAt: Date.now() + LOGIN_WINDOW_MS };
+    entry.count += 1;
+    failures.set(ip, entry);
+  };
+
+  const startSession = (res, user) => {
+    const token = crypto.randomBytes(32).toString('base64url');
+    sessions.set(token, { user, expiresAt: Date.now() + SESSION_TTL_MS });
+    setCookie(res, token, SESSION_TTL_MS / 1000);
+    sendJson(res, 200, { user });
+  };
+
   const login = async (req, res) => {
     const ip = req.socket.remoteAddress;
     const record = failures.get(ip);
@@ -78,6 +93,20 @@ const createAdminServer = ({ credentials, logger, actions, isEnabled }) => {
       sendJson(res, 400, { error: 'Send your email and password' });
       return;
     }
+    if (typeof body.ticket === 'string' && body.ticket) {
+      try {
+        const user = actions.verifyAdminTicket(body.ticket);
+        failures.delete(ip);
+        logger.info('admin signed in with a console ticket', { user: user.email });
+        startSession(res, user);
+      } catch (error) {
+        if (!(error instanceof TicketError)) throw error;
+        countFailure(ip, record);
+        logger.warn('admin sign-in ticket refused', { reason: error.message });
+        sendJson(res, 401, { error: error.message });
+      }
+      return;
+    }
     const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
     if (!email || typeof body.password !== 'string' || !body.password) {
       sendJson(res, 400, { error: 'Enter your email and password' });
@@ -86,22 +115,17 @@ const createAdminServer = ({ credentials, logger, actions, isEnabled }) => {
     try {
       const user = await actions.verifyAdmin(email, body.password);
       failures.delete(ip);
-      const token = crypto.randomBytes(32).toString('base64url');
-      sessions.set(token, { user, expiresAt: Date.now() + SESSION_TTL_MS });
-      setCookie(res, token, SESSION_TTL_MS / 1000);
       logger.info('admin signed in', { user: user.email });
-      sendJson(res, 200, { user });
+      startSession(res, user);
     } catch (error) {
       if (error instanceof LinkError && (error.status === 401 || error.status === 403)) {
-        const entry = record && record.resetAt > Date.now() ? record : { count: 0, resetAt: Date.now() + LOGIN_WINDOW_MS };
-        entry.count += 1;
-        failures.set(ip, entry);
+        countFailure(ip, record);
         logger.warn('admin sign-in refused', { email });
         sendJson(res, 401, { error: 'The email or password is wrong, or this account is not an admin of the organization that owns this gateway.' });
         return;
       }
       logger.warn('admin sign-in unavailable', { error: error.message });
-      sendJson(res, 503, { error: `Sign-in needs the management console, which could not be reached. ${error.message}` });
+      sendJson(res, 503, { error: `Signing in with a password needs the management console, which could not be reached (${error.message}). Open the admin UI from the gateway page in the console instead.` });
     }
   };
 

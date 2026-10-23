@@ -32,6 +32,17 @@ describe('gateway setup', () => {
     await api('get', `${gatewayUrl}/credentials`, admin);
     assert.equal((await setupOf()).next.key, 'node');
 
+    // Starting a node offers the console connecting to it first, with commands that publish the
+    // management port and don't name the console, and warns that a localhost link only works locally.
+    const page = await browser('get', `/developer/gateways/${gatewayUrl.split('/').pop()}`, admin);
+    assert.match(page.text, /name="setupMode" value="push" checked/);
+    assert.ok(page.text.includes('id="setupPushForm"'));
+    const pushPanel = page.text.slice(page.text.indexOf('data-setup-panel="push"'), page.text.indexOf('data-setup-panel="pull"'));
+    assert.match(pushPanel, /-p 9443:9443/);
+    assert.doesNotMatch(pushPanel, /GATEWAY_MANAGEMENT_URL/);
+    assert.match(pushPanel, /Copy these to the server first/);
+    assert.match(page.text, /Only nodes on this computer can reach/);
+
     // A pull node that just sent a heartbeat counts as running.
     await GatewayNode.create({ gatewayId: gatewayUrl.split('/').pop(), name: 'node-1', mode: 'pull', lastSeenAt: new Date() });
     setup = await setupOf();

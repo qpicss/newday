@@ -26,6 +26,7 @@ const { ManagementLink, SOFTWARE_VERSION } = require('./link');
 const { sendJson } = require('./http');
 const { createFailureTracker } = require('./threats');
 const { findOperation } = require('./routes');
+const { createTicketVerifier } = require('./adminTicket');
 
 const CONFIG_FILE = 'config.json';
 
@@ -80,6 +81,7 @@ const createGateway = (overrides = {}) => {
   const policyRunner = new PolicyRunner({ size: settings.policyWorkers, logger, host: scriptHost });
   const connections = new UpstreamConnections({ settings, metrics: observability.metrics, logger });
   let runtime = null;
+  const verifyTicket = createTicketVerifier({ gatewayId: credentials.gatewayId });
   let appliedAt = null;
   // Failed attempts counted by Security steps (brute-force lockout), on this node.
   const failureTracker = createFailureTracker();
@@ -345,6 +347,7 @@ const createGateway = (overrides = {}) => {
     overview,
     testFlow,
     verifyAdmin: (email, password) => link.verifyAdmin(email, password),
+    verifyAdminTicket: (ticket) => verifyTicket(ticket, runtime),
   };
 
   const isAdminEnabled = () => settings.adminEnabled && (!runtime || runtime.admin.enabled !== false);

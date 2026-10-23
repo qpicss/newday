@@ -378,7 +378,26 @@
 
     window.addEventListener('hashchange', () => { if (state.user) route(); });
 
+    // Opened from the console's gateway page: #ticket=<one-time ticket>. Taken out of the address
+    // right away, then exchanged for a session.
+    const ticket = new URLSearchParams(window.location.hash.slice(1)).get('ticket');
+    if (ticket) history.replaceState(null, '', window.location.pathname + window.location.search);
+
     (async () => {
+        if (ticket) {
+            try {
+                const result = await api('/api/login', { method: 'POST', body: { ticket } });
+                state.user = result.user;
+                await showApp();
+                return;
+            } catch (problem) {
+                showLogin();
+                const error = document.getElementById('login-error');
+                error.textContent = problem.message;
+                error.hidden = false;
+                return;
+            }
+        }
         try {
             const session = await api('/api/session');
             state.user = session.user;

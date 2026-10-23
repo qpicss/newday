@@ -86,14 +86,46 @@ statusButton.addEventListener('click', async () => {
     UI.setLoading(statusButton, false);
 });
 
-UI.bindForm(document.getElementById('nodeForm'), {
-    alert: document.getElementById('node-alert'),
-    loadingLabel: 'Adding…',
-    submit: async (formData) => {
-        const result = await UI.sendJson(`${gatewayUrl}/nodes`, { body: { name: formData.get('name'), url: formData.get('url') } });
-        UI.flash(`${result.node.name} was added. Push to send it the configuration.`);
-        window.location.reload();
-    },
+// A node the console connects to (push): added by its address, then checked by the console at once.
+function addPushNode(formData) {
+    return UI.sendJson(`${gatewayUrl}/nodes`, { body: { name: formData.get('name'), url: formData.get('url') } });
+}
+function pushNodeMessage(result) {
+    const check = result.check;
+    if (!check || check.reachable) return `${result.node.name} answered the console. ${check && check.resent ? 'It received the deployed configuration.' : 'Push to send it the configuration.'}`;
+    return `${result.node.name} was added but didn't answer: ${check.error}. The console keeps checking it every 30 seconds. Check that the node runs and that port 9443 is open to the console.`;
+}
+
+const nodeForm = document.getElementById('nodeForm');
+if (nodeForm) {
+    UI.bindForm(nodeForm, {
+        alert: document.getElementById('node-alert'),
+        loadingLabel: 'Adding…',
+        submit: async (formData) => {
+            const result = await addPushNode(formData);
+            UI.flash(pushNodeMessage(result), result.check && !result.check.reachable ? 'error' : 'success');
+            window.location.reload();
+        },
+    });
+}
+
+// Opens a node's admin UI already signed in, with a one-time ticket from the console. The tab is
+// opened before the request so that popup blockers allow it.
+document.querySelectorAll('[data-open-admin]').forEach((button) => {
+    button.addEventListener('click', async () => {
+        const tab = window.open('', '_blank');
+        if (tab) tab.opener = null;
+        UI.setLoading(button, true, 'Opening…');
+        try {
+            const { url } = await UI.sendJson(button.dataset.openAdmin, { method: 'POST' });
+            if (tab) tab.location.href = url;
+            else window.location.href = url;
+        } catch (error) {
+            if (tab) tab.close();
+            UI.toast(error.message, 'error');
+        }
+        UI.setLoading(button, false);
+    });
 });
 
 // A new node: registered first, then the page opens its start command.
@@ -359,6 +391,29 @@ showShell(preferredShell(), false);
 
 const setupCard = document.querySelector('[data-gateway-setup]');
 const nextStep = setupCard ? setupCard.dataset.nextStep : '';
+
+// Step 3: the console connects to the node (push), or the node connects to the console (pull).
+const setupMode = document.querySelector('[data-setup-mode]');
+if (setupMode) {
+    const showMode = () => {
+        const mode = setupMode.querySelector('[name="setupMode"]:checked')?.value || 'push';
+        document.querySelectorAll('[data-setup-panel]').forEach((panel) => { panel.hidden = panel.dataset.setupPanel !== mode; });
+    };
+    setupMode.addEventListener('change', showMode);
+    showMode();
+}
+const setupPushForm = document.getElementById('setupPushForm');
+if (setupPushForm) {
+    UI.bindForm(setupPushForm, {
+        alert: document.getElementById('setup-push-alert'),
+        loadingLabel: 'Connecting…',
+        submit: async (formData) => {
+            const result = await addPushNode(formData);
+            UI.flash(pushNodeMessage(result), result.check && !result.check.reachable ? 'error' : 'success');
+            window.location.reload();
+        },
+    });
+}
 
 const quickHandlerForm = document.getElementById('quickHandlerForm');
 if (quickHandlerForm) {

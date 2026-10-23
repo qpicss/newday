@@ -1,6 +1,6 @@
 <%#
   The four steps from a new gateway to one that serves a catalog, each with its action inline.
-  Takes: gateway (with setup), gatewayUrl, catalogs, runCommands, credentialsFile, pullMode, linkUrl, dockerLinkUrl.
+  Takes: gateway (with setup), gatewayUrl, catalogs, runCommands (pull), pushCommands, linkLocal, linkUrl, nextNode, credentialsFile, pullMode, dockerLinkUrl.
 %>
 <%
 const setup = gateway.setup;
@@ -68,13 +68,53 @@ const handler = gateway.handlers[0];
                         <% if (step.done) { %>
                             <div class="step-desc"><%= gateway.nodes.length %> node<%= gateway.nodes.length === 1 ? '' : 's' %> connected. See <a href="#nodes">Nodes</a>.</div>
                         <% } else if (state === 'is-current') { %>
-                            <div class="step-desc">Copy the command for your system and run it in the folder where you saved <code><%= credentialsFile %></code>.
-                                <% if (pullMode) { %>The node then connects to the console at <code><%= dockerLinkUrl %></code> by itself.<% } else { %>Then add the node's address under <a href="#nodes">Nodes</a>.<% } %></div>
-                            <%- include('gateway-run-commands.html', { commands: runCommands, credentialsFile }) %>
+                            <fieldset class="choice-cards setup-mode" data-setup-mode>
+                                <legend class="label">How the console and the node talk</legend>
+                                <label class="choice-card">
+                                    <input type="radio" name="setupMode" value="push" checked>
+                                    <span><strong>The console connects to the node</strong><span class="hint">Recommended when the node runs elsewhere, for example in the cloud. The console checks the node every 30 seconds, sends it the configuration and opens its admin UI. The node needs no route to the console.</span></span>
+                                </label>
+                                <label class="choice-card">
+                                    <input type="radio" name="setupMode" value="pull" <%= pullMode ? '' : 'disabled' %>>
+                                    <span><strong>The node connects to the console</strong><span class="hint"><% if (pullMode) { %>The node registers itself and pulls the configuration from <code><%= linkUrl %></code>. It must be able to reach that address.<% } else { %>Not available: the console's gateway link is turned off.<% } %></span></span>
+                                </label>
+                            </fieldset>
+
+                            <div data-setup-panel="push">
+                                <div class="step-desc">1. Start the node with the command for your system, in the folder where you saved <code><%= credentialsFile %></code>. Port <strong>9443</strong> must be open from the console to the node.</div>
+                                <%- include('gateway-run-commands.html', { commands: pushCommands, credentialsFile }) %>
+                                <div class="step-desc">2. Tell the console where the node is. It checks the node right away.</div>
+                                <form id="setupPushForm" class="setup-inline-form" data-gateway-url="<%= gatewayUrl %>">
+                                    <div class="field field-narrow">
+                                        <label for="setupPushName">Node name</label>
+                                        <input class="input input-sm mono" type="text" id="setupPushName" name="name" value="<%= nextNode.name %>" maxlength="100" pattern="[A-Za-z0-9._:@\-]+" required>
+                                    </div>
+                                    <div class="field">
+                                        <label for="setupPushUrl">Node address</label>
+                                        <input class="input input-sm mono" type="url" id="setupPushUrl" name="url" placeholder="https://203.0.113.10:9443" required>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary btn-sm"><%- include('icon.html', { name: 'plus' }) %>Connect</button>
+                                </form>
+                                <div id="setup-push-alert" class="alert alert-danger" role="alert" hidden>
+                                    <%- include('icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                                </div>
+                            </div>
+
                             <% if (pullMode) { %>
-                                <div class="setup-waiting" role="status" data-setup-waiting>
-                                    <span class="spinner" aria-hidden="true"></span>
-                                    <span>Waiting for a node to connect. This page updates by itself.</span>
+                                <div data-setup-panel="pull" hidden>
+                                    <% if (linkLocal) { %>
+                                        <div class="alert alert-warning" role="note">
+                                            <%- include('icon.html', { name: 'alert' }) %>
+                                            <div><strong>Only nodes on this computer can reach <code><%= linkUrl %></code></strong>
+                                                <span>A node on another server can't connect to it. Set <code>GATEWAY_LINK_PUBLIC_URL</code> in the console's <code>.env</code> to an address that server can reach and restart the console, or choose "The console connects to the node".</span></div>
+                                        </div>
+                                    <% } %>
+                                    <div class="step-desc">Copy the command for your system and run it in the folder where you saved <code><%= credentialsFile %></code>. The node then connects to the console at <code><%= dockerLinkUrl %></code> by itself.</div>
+                                    <%- include('gateway-run-commands.html', { commands: runCommands, credentialsFile }) %>
+                                    <div class="setup-waiting" role="status" data-setup-waiting>
+                                        <span class="spinner" aria-hidden="true"></span>
+                                        <span>Waiting for a node to connect. This page updates by itself.</span>
+                                    </div>
                                 </div>
                             <% } %>
                         <% } else { %>

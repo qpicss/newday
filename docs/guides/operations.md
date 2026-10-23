@@ -81,8 +81,9 @@ To trust gateway admin UIs and HTTPS handlers whose certificates the console iss
 
 The [gateway README](../../gateway/README.md) covers Docker, Docker Compose clusters with Redis, Ubuntu with systemd, upgrades and rollbacks, and every node setting. In short:
 
-- Build or pull the `oauth-server-gateway` image, or run `gateway/deploy/install.sh` on Ubuntu.
-- Start each node with the gateway's credentials file. Use pull mode (`GATEWAY_MANAGEMENT_URL`) when the console can't reach the nodes.
+- Build or pull the `oauth-server-gateway` image, or run `gateway/deploy/install.sh` on Ubuntu. To install on another server, first copy the [files the installer needs](../../gateway/README.md#files-to-copy-to-the-server) and the credentials file. The gateway's page lists them too, under **Linux service**.
+- Start each node with the gateway's credentials file. By default the console connects to the nodes (push mode, port 9443 open from the console to each node). It checks them every 30 seconds (`GATEWAY_MONITOR_MS`), marks a node that doesn't answer as **Unreachable**, and sends the deployed configuration again to a node that comes back with an older one. Use pull mode (`GATEWAY_MANAGEMENT_URL`) only when the console can't reach the nodes but the nodes can reach the console's link address.
+- Open a node's admin UI with **Open admin UI** on the gateway page: it signs you in with a one-time ticket and works in both modes.
 - Put a load balancer in front of a cluster. Set `GATEWAY_REDIS_URL` for exact shared rate limits.
 
 ## Monitoring

@@ -121,6 +121,7 @@ router.delete('/gateways/:id', requireOrgAdmin, deployment.deleteGateway);
 router.post('/gateways/:id/nodes', requireOrgAdmin, deployment.addNode);
 router.put('/gateways/:id/nodes/:nodeId', requireOrgAdmin, deployment.updateNode);
 router.delete('/gateways/:id/nodes/:nodeId', requireOrgAdmin, deployment.removeNode);
+router.post('/gateways/:id/nodes/:nodeId/admin-ticket', requireOrgAdmin, deployment.adminTicket);
 router.post('/gateways/:id/handlers', requireOrgAdmin, deployment.addHandler);
 router.put('/gateways/:id/handlers/:handlerId', requireOrgAdmin, deployment.updateHandler);
 router.delete('/gateways/:id/handlers/:handlerId', requireOrgAdmin, deployment.removeHandler);

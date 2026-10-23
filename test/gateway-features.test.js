@@ -25,6 +25,7 @@ const { startLinkServer } = require('../services/linkServer');
 const { setAutoPushEnabled } = require('../services/autoPush');
 const { testFlowOnGateway } = require('../services/gatewayPush');
 const { loadGateway } = require('../services/gatewayQueries');
+const { checkGateway } = require('../services/gatewayMonitor');
 const { pollingNodes } = require('../services/linkTasks');
 
 const { GatewayNode, GatewayCredential, UsageRecord, Api } = models;
@@ -380,6 +381,88 @@ describe('gateway features in the console', () => {
       assert.equal(requests.status, 200);
       assert.ok(requests.body.entries.some((entry) => entry.path === '/orders/orders'));
       assert.equal((await adminCall(adminPort, ca, { pathname: '/api/overview' })).status, 401);
+    });
+  });
+
+  describe('the console keeps track of push nodes', () => {
+    it('checks a push node when it is added and reports one that does not answer', async () => {
+      const deadPort = await freePort();
+      const added = await api('post', `${gatewayPath(pushGatewayId)}/nodes`, publisher).send({ name: 'push-dead', url: `https://127.0.0.1:${deadPort}`, portOffset: 500 });
+      assert.equal(added.status, 201, JSON.stringify(added.body));
+      assert.equal(added.body.check.reachable, false);
+      assert.ok(added.body.check.error);
+      const node = await GatewayNode.findOne({ where: { name: 'push-dead' } });
+      assert.ok(node.lastError);
+      assert.equal(node.lastSeenAt, null);
+
+      const page = await browser('get', `/developer/gateways/${pushGatewayId}`, publisher);
+      assert.match(page.text, /Unreachable/);
+      await node.destroy();
+    });
+
+    it('sends the deployed configuration again to a node that comes back without it', async () => {
+      // The node is recreated with an empty data volume: it answers, but has no configuration.
+      await pushNode.node.stop();
+      pushNode = await startNode(pushBundle);
+      const node = await GatewayNode.findOne({ where: { gatewayId: pushGatewayId, name: 'push-1' } });
+      await node.update({ url: `https://127.0.0.1:${pushNode.ports.managementPort}` });
+      assert.equal(pushNode.node.status().version, null);
+
+      const [result] = await checkGateway(await loadGateway({ id: pushGatewayId }));
+      assert.deepEqual({ reachable: result.reachable, resent: result.resent }, { reachable: true, resent: true }, JSON.stringify(result));
+      const gateway = await loadGateway({ id: pushGatewayId });
+      assert.equal(pushNode.node.status().version, gateway.lastPushedHash.slice(0, 12));
+      assert.equal((await callGateway(pushHandlerPort)).status, 200);
+
+      // In sync now: the next check only records that the node answered.
+      const [again] = await checkGateway(gateway);
+      assert.deepEqual({ reachable: again.reachable, resent: again.resent }, { reachable: true, resent: false });
+      assert.ok((await GatewayNode.findByPk(node.id)).lastSeenAt);
+    });
+  });
+
+  describe('admin UI tickets from the console', () => {
+    const ticketOf = (url) => decodeURIComponent(new URL(url).hash.replace(/^#ticket=/, ''));
+    const loginWith = (ticket) => adminCall(pushNode.ports.adminPort, pushBundle.managementCa, { method: 'POST', pathname: '/api/login', body: { ticket } });
+    const nodeId = async (gatewayId, name) => (await GatewayNode.findOne({ where: { gatewayId, name } })).id;
+
+    it('signs an org admin in to a node that cannot reach the console, once', async () => {
+      // This push node has no console address, so a password sign-in can't be checked.
+      const password = await adminCall(pushNode.ports.adminPort, pushBundle.managementCa, { method: 'POST', pathname: '/api/login', body: { email: publisher.email, password: 'publisher-pass-1' } });
+      assert.equal(password.status, 503);
+      assert.match(password.body.error, /Open the admin UI from the gateway page/);
+
+      const issued = await api('post', `${gatewayPath(pushGatewayId)}/nodes/${await nodeId(pushGatewayId, 'push-1')}/admin-ticket`, publisher);
+      assert.equal(issued.status, 200, JSON.stringify(issued.body));
+      assert.match(issued.body.url, /^https:\/\/127\.0\.0\.1:9445\/#ticket=/);
+      const ticket = ticketOf(issued.body.url);
+
+      const ok = await loginWith(ticket);
+      assert.equal(ok.status, 200, JSON.stringify(ok.body));
+      assert.equal(ok.body.user.email, publisher.email);
+      const cookie = ok.headers['set-cookie'][0].split(';')[0];
+      const overview = await adminCall(pushNode.ports.adminPort, pushBundle.managementCa, { pathname: '/api/overview', cookie });
+      assert.equal(overview.body.gatewayName, 'Edge push');
+
+      const reused = await loginWith(ticket);
+      assert.equal(reused.status, 401);
+      assert.match(reused.body.error, /already used/);
+    });
+
+    it('refuses tickets for another gateway, access tokens and people who are not org admins', async () => {
+      const other = await api('post', `${gatewayPath(pullGatewayId)}/nodes/${await nodeId(pullGatewayId, 'pull-1')}/admin-ticket`, publisher);
+      assert.equal(other.status, 200);
+      const wrongGateway = await loginWith(ticketOf(other.body.url));
+      assert.equal(wrongGateway.status, 401);
+      assert.match(wrongGateway.body.error, /another gateway/);
+
+      assert.equal((await loginWith(await tokenFor())).status, 401);
+      assert.equal((await loginWith('not-a-ticket')).status, 401);
+
+      const pushNodeId = await nodeId(pushGatewayId, 'push-1');
+      assert.equal((await api('post', `${gatewayPath(pushGatewayId)}/nodes/${pushNodeId}/admin-ticket`, member)).status, 403);
+      assert.equal((await api('post', `${gatewayPath(pushGatewayId)}/nodes/${pushNodeId}/admin-ticket`, outsider)).status, 404);
+      assert.equal((await api('post', `${gatewayPath(pushGatewayId)}/nodes/00000000-0000-0000-0000-000000000000/admin-ticket`, publisher)).status, 404);
     });
   });
 

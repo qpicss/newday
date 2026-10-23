@@ -7,6 +7,7 @@ require('./models/Application');
 require('./models/Token');
 const { startLinkServer } = require('./services/linkServer');
 const { startUsageCollector } = require('./services/usageCollector');
+const { startGatewayMonitor } = require('./services/gatewayMonitor');
 const { linkSettings } = require('./utils/linkSettings');
 
 const PORT = process.env.PORT || 3000;
@@ -39,6 +40,7 @@ sequelize.sync({ alter: process.env.DB_SYNC_ALTER === 'true' })
         .catch((error) => console.error(`Gateway link could not start on port ${link.port}: ${error.message}`));
     }
     startUsageCollector();
+    startGatewayMonitor();
   })
   .catch((error) => {
     console.error('Database connection failed:', error.message);

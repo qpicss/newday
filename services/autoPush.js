@@ -41,7 +41,7 @@ const scheduleAutoPush = (organizationId) => {
 };
 
 // Middleware: schedules an auto-push after any successful change made through the organization API.
-const SKIP = /\/(push|status|credentials|renew|requests|usage|config|test|revoke)(\/|$)/;
+const SKIP = /\/(push|status|credentials|renew|requests|usage|config|test|revoke|admin-ticket)(\/|$)/;
 const autoPushAfterChanges = (req, res, next) => {
   if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method) && !SKIP.test(req.path)) {
     res.on('finish', () => {
