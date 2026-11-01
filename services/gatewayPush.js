@@ -7,6 +7,7 @@ const { getPki, issueGatewayCredentials } = require('../utils/pki');
 const { buildGatewayConfig } = require('./gatewayConfig');
 const { recordUsage } = require('./usage');
 const { runTask, pollingNodes } = require('./linkTasks');
+const { MANAGEMENT_PORT } = require('./gatewayNodes');
 
 const NODE_TIMEOUT_MS = 10000;
 const MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
@@ -33,6 +34,12 @@ const revokedFingerprints = async (gatewayId) => new Set((await GatewayCredentia
   where: { gatewayId },
   attributes: ['fingerprint', 'revokedAt'],
 })).filter((credential) => credential.revokedAt).map((credential) => credential.fingerprint));
+
+// The management API names its own errors. A bare 404 means the address is another of the node's
+// ports (admin UI or API traffic), which use the same certificate.
+const problemOf = (status) => (status === 404
+  ? `The node answered HTTP 404: this address is not its management port. Remove the node and add it again with port ${MANAGEMENT_PORT}.`
+  : `The node answered HTTP ${status}`);
 
 const callNode = (node, gatewayId, pki, { method, path, body, revoked = new Set() }) => new Promise((resolve) => {
   let url;
@@ -85,7 +92,7 @@ const callNode = (node, gatewayId, pki, { method, path, body, revoked = new Set(
         status: response.statusCode,
         body: json,
         fingerprint: peerFingerprint,
-        error: ok ? null : (json?.message || `The node answered HTTP ${response.statusCode}`),
+        error: ok ? null : (json?.message || problemOf(response.statusCode)),
       });
     });
   });

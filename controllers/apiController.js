@@ -18,6 +18,9 @@ const {
 } = require('../utils/openapi');
 const { importIntoDictionary } = require('../services/dictionary');
 
+// How gateways admit callers; matches gateway/src/runtime.js.
+const API_ACCESS = ['subscription', 'public'];
+
 // Every new API gets a policy of its own with the default flow (Input -> Output): until someone
 // adds steps, the gateway answers each call with the request it received.
 const createApiWithPolicy = (attributes) => sequelize.transaction(async (transaction) => {
@@ -42,6 +45,7 @@ const serializeApi = (api, { withOperations = false } = {}) => {
     description: api.description,
     baseUrl: api.baseUrl,
     basePath: api.basePath,
+    access: api.access,
     catalogId: api.catalogId,
     ...(api.catalog && { catalog: { id: api.catalog.id, name: api.catalog.name } }),
     policyId: api.policyId,
@@ -86,9 +90,13 @@ const validateApiInfo = (body = {}, { partial = false } = {}) => {
   return { fields };
 };
 
-// Gateway settings: base path (unique in the organization) and policy (from the organization).
+// Gateway settings: base path (unique in the organization), access, and policy (from the organization).
 const validateGatewaySettings = async (req, body = {}, apiId = null) => {
   const fields = {};
+  if (body.access !== undefined) {
+    if (!API_ACCESS.includes(body.access)) return { error: 'Access must be "subscription" or "public"' };
+    fields.access = body.access;
+  }
   if (body.basePath !== undefined) {
     const error = validateBasePath(body.basePath);
     if (error) return { error };

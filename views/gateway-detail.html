@@ -300,6 +300,10 @@
                                     </div>
                                     <% } %>
                                     <div class="inline-select">
+                                        <label class="sr-only" for="handler-home-<%= handler.id %>">Home path of <%= handler.name %></label>
+                                        <input class="input input-sm mono" type="text" id="handler-home-<%= handler.id %>" value="<%= handler.homePath || '' %>" maxlength="200" placeholder="Home: none" title="Where a request for / on this port is redirected, e.g. /site/" data-handler-home="<%= gatewayUrl %>/handlers/<%= handler.id %>" data-handler-name="<%= handler.name %>">
+                                    </div>
+                                    <div class="inline-select">
                                         <label class="sr-only" for="handler-policy-<%= handler.id %>">Port policy for <%= handler.name %></label>
                                         <select class="select select-sm" id="handler-policy-<%= handler.id %>" data-handler-policy="<%= gatewayUrl %>/handlers/<%= handler.id %>" data-handler-name="<%= handler.name %>">
                                             <option value="">No port policy</option>
@@ -348,6 +352,11 @@
                             <span class="hint" id="handler-node-hint">After adding a port, run the node's command again so Docker publishes it.</span>
                         </div>
                         <% } %>
+                        <div class="field">
+                            <label for="handlerHome">Home path <span class="label-optional">(optional)</span></label>
+                            <input class="input input-sm mono" type="text" id="handlerHome" name="homePath" maxlength="200" placeholder="/site/" aria-describedby="handler-home-hint">
+                            <span class="hint" id="handler-home-hint">Where a browser asking for <code>/</code> on this port is redirected, e.g. the base path of a public website API. Empty: <code>/</code> answers 404.</span>
+                        </div>
                         <div class="field">
                             <label for="handlerPolicy">Port policy <span class="label-optional">(optional)</span></label>
                             <select class="select select-sm" id="handlerPolicy" name="policyId">

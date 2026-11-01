@@ -190,9 +190,10 @@
             match: /^\/developer\/gateways\/[^/]+\/requests\/?$/,
             title: 'Live requests',
             steps: [
-                { target: '#filters', title: 'Filters', body: 'Narrow down by status class or API, or search.' },
+                { target: '#filters', title: 'Filters', body: 'Narrow down by status class or API, or search. Latest sets how many requests are fetched from the nodes, Rows per page how many show at once.' },
                 { target: '#toggleLive', title: 'Follow live', body: 'Keeps the list updating as requests come in.' },
-                { target: '#requests', title: 'Requests', body: 'Open one to see its timings, the policy steps it went through and its trace ID.' },
+                { target: '#requests', title: 'Requests', body: 'Click a request to open its log right under it: timings, the policy steps it went through and its trace ID. Click again to close it.' },
+                { target: '#pager', title: 'Pages', body: 'Move between pages of the fetched requests.' },
             ],
         },
         {

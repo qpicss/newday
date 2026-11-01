@@ -52,6 +52,7 @@ The dashboard also tells you about access requests waiting for you, and gateway 
 | Setting | |
 |---|---|
 | Base path | Where clients call the API on the gateway, for example `/orders/v1`. Unique in the organization. |
+| Access | **Applications with an approved subscription** (the default: a token is required), or **Public**: anyone may call it without a token, for example a website. A public API still has to be in a published product of the gateway's catalog, but the gateway doesn't check tokens or subscriptions and doesn't apply the product's rate limit. Its flow sees no consumer, so protect the backend with a Security step. |
 | Policy | The flow every request goes through. Without one, the gateway answers `200` with the request's own body and doesn't call the backend. |
 | Connection | How the backend is called: timeouts, retries, credentials, TLS |
 
@@ -122,7 +123,7 @@ Approved access takes effect at the next push of the gateway, which happens on i
 | Setup | The remaining steps until the gateway serves traffic |
 | Nodes | Every node with its mode (push or pull), host, port offset, software and configuration version, when it was last seen or pushed, and its last error; change where it runs, or remove it |
 | Addresses | The address of each port, per node, for clients and load balancers |
-| Connection handlers | Ports for API traffic: name, port, HTTP or HTTPS, every node or one, a port policy. HTTPS uses a certificate issued by the management CA or your own (PEM certificate and key). |
+| Connection handlers | Ports for API traffic: name, port, HTTP or HTTPS, every node or one, a port policy and a home path. HTTPS uses a certificate issued by the management CA or your own (PEM certificate and key). The home path (for example `/site/`) is where a browser asking for `/` on the port is redirected; without one, `/` answers 404. |
 | Observability | Live request log (and how many requests each node keeps), Prometheus metrics, the node's admin UI, and off-load of request records to an HTTP endpoint or an OpenTelemetry collector, with auth header, batch size, flush interval and sample rate |
 | Add a node | Name it, choose the same Docker host (ports shifted by an offset) or another server, and copy the command for PowerShell, Command Prompt, or macOS and Linux |
 | Credentials | Download the credentials file; certificates with their expiry; **Renew**; **Revoke** |
@@ -134,7 +135,7 @@ Approved access takes effect at the next push of the gateway, which happens on i
 
 ### Live requests
 
-Each request served by the nodes, newest first, with method, path, status, timings, API, application, node and trace ID. Filter by status class (2xx to 5xx) and API, or search; **Follow live** keeps the list updating. Open a request for its details. Headers and bodies are never recorded.
+Each request served by the nodes, newest first, with method, path, status, timings, API, application, node and trace ID. Filter by status class (2xx to 5xx) and API, or search; **Follow live** keeps the list updating. **Latest** sets how many requests are fetched from the nodes (100 to 1,000), and **Rows per page** how many show at once, with page buttons under the table. Click a request to open its log right under it, and click again to close it; open logs stay open while the list refreshes. Headers and bodies are never recorded.
 
 ### Policies
 

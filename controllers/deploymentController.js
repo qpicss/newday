@@ -33,7 +33,7 @@ const { getPki } = require('../utils/pki');
 const { usageSeries } = require('../services/usage');
 const { gatewaySetup } = require('../utils/gatewaySetup');
 const {
-  NODE_NAME, MAX_PORT_OFFSET, nodeHost, containerPorts, isPull, nodeAddresses, clusterAddresses, nextPortOffset,
+  NODE_NAME, MAX_PORT_OFFSET, MANAGEMENT_PORT, ADMIN_PORT, nodeHost, containerPorts, isPull, nodeAddresses, clusterAddresses, nextPortOffset,
 } = require('../services/gatewayNodes');
 
 const OFFLOAD_TYPES = ['none', 'http', 'otlp'];
@@ -129,6 +129,19 @@ const certificateInfo = (pem) => {
   return { subject: cert.subject, subjectAltName: cert.subjectAltName, validTo: cert.validTo, fingerprint: cert.fingerprint256, daysLeft: daysUntil(cert.validTo) };
 };
 
+// A handler's home path: undefined (not sent), null (cleared) or a local path such as /site/.
+// Matches gateway/src/runtime.js.
+const HOME_PATH = /^\/[^\s?#\\]*$/;
+const handlerHomePath = (value) => {
+  if (value === undefined) return { value: undefined };
+  if (value === null || (typeof value === 'string' && !value.trim())) return { value: null };
+  const path = typeof value === 'string' ? value.trim() : '';
+  if (!HOME_PATH.test(path) || path === '/' || path.startsWith('//') || path.length > 200) {
+    return { error: 'The home path is a path on this gateway, such as /site/ (not "/" and not a full URL)' };
+  }
+  return { value: path };
+};
+
 const serializeHandler = (handler) => ({
   id: handler.id,
   name: handler.name,
@@ -136,6 +149,7 @@ const serializeHandler = (handler) => ({
   protocol: handler.protocol,
   tlsMode: handler.tlsMode,
   nodeId: handler.nodeId || null,
+  homePath: handler.homePath || null,
   policy: handler.policy ? { id: handler.policy.id, name: handler.policy.name } : null,
   certificate: handler.certificatePem ? certificateInfo(handler.certificatePem) : null,
 });
@@ -521,6 +535,14 @@ const addNode = async (req, res) => {
       if (!url || url.pathname !== '/' || url.search) {
         return res.status(400).json({ error: 'Node address must be the https:// host and management port of a gateway, for example https://10.0.0.5:9443' });
       }
+      // An address without a port means the management port, not 443.
+      if (!url.port) url.port = String(MANAGEMENT_PORT);
+      const port = Number(url.port);
+      const handler = gateway.handlers.find((item) => item.port === port);
+      if (port === ADMIN_PORT || port === ADMIN_PORT + (offset.value ?? 0) || handler) {
+        const what = handler ? `the "${handler.name}" handler, which serves API traffic` : "the node's admin UI";
+        return res.status(400).json({ error: `Port ${port} is ${what}. Enter the node's management port instead, for example https://${url.hostname}:${MANAGEMENT_PORT}` });
+      }
       if (gateway.nodes.some((node) => node.url === url.origin)) {
         return res.status(409).json({ error: 'This gateway already has a node at that address' });
       }
@@ -563,6 +585,10 @@ const adminTicket = async (req, res) => {
     if (!node) return res.status(404).json({ error: 'Node not found' });
     const address = nodeAddresses(gateway, node).admin;
     if (!address) return res.status(409).json({ error: 'The admin UI is turned off for this gateway. Turn it on under Observability, then push the configuration.' });
+    // The node checks the ticket with the keys in its configuration, so it needs one first.
+    if (!node.configVersion) {
+      return res.status(409).json({ error: "This node has no configuration yet, so it can't check the sign-in link. Make sure the console can reach it (it must not show Unreachable), then push the configuration." });
+    }
     const { tokenKey } = await getPki();
     const ticket = signAdminTicket({ user: req.user, organization: req.user.organization, gateway, node }, tokenKey);
     res.json({ url: `${address}/#ticket=${encodeURIComponent(ticket)}`, expiresIn: 60 });
@@ -646,8 +672,10 @@ const addHandler = async (req, res) => {
     }
     const policy = await findOrgPolicy(req, req.body?.policyId);
     if (policy.error) return res.status(400).json({ error: policy.error });
+    const home = handlerHomePath(req.body?.homePath);
+    if (home.error) return res.status(400).json({ error: home.error });
     const protocol = req.body?.protocol === 'https' ? 'https' : 'http';
-    const fields = { gatewayId: gateway.id, name, port, protocol, policyId: policy.value ?? null, nodeId };
+    const fields = { gatewayId: gateway.id, name, port, protocol, policyId: policy.value ?? null, nodeId, homePath: home.value ?? null };
     const clash = hostPortClash(gateway, gateway.nodes, [...gateway.handlers, fields]);
     if (clash) return res.status(409).json({ error: clash });
 
@@ -673,7 +701,7 @@ const addHandler = async (req, res) => {
   }
 };
 
-// Changes a handler's port policy, or where it runs (every node, or one node).
+// Changes a handler's port policy, home path, or where it runs (every node, or one node).
 const updateHandler = async (req, res) => {
   try {
     const gateway = await findOrgGateway(req);
@@ -684,6 +712,8 @@ const updateHandler = async (req, res) => {
     if (policy.error) return res.status(400).json({ error: policy.error });
     const scope = findNodeOf(gateway, req.body?.nodeId);
     if (scope.error) return res.status(400).json({ error: scope.error });
+    const home = handlerHomePath(req.body?.homePath);
+    if (home.error) return res.status(400).json({ error: home.error });
     if (scope.value !== undefined) {
       const taken = handlerPortTaken(gateway, { port: handler.port, nodeId: scope.value, exceptId: handler.id });
       if (taken) return res.status(409).json({ error: `Port ${handler.port} already has the handler "${taken.name}"${taken.nodeId ? ' on that node' : ' on every node'}` });
@@ -694,6 +724,7 @@ const updateHandler = async (req, res) => {
     const changes = {
       ...(policy.value !== undefined && { policyId: policy.value }),
       ...(scope.value !== undefined && { nodeId: scope.value }),
+      ...(home.value !== undefined && { homePath: home.value }),
     };
     if (Object.keys(changes).length) await handler.update(changes);
     await handler.reload({ include: [{ association: 'policy' }] });
@@ -796,7 +827,7 @@ const requests = async (req, res) => {
     const gateway = await findOrgGateway(req);
     if (!gateway) return res.status(404).json({ error: 'Gateway not found' });
     const { status: statusFilter, api, client, text, limit } = req.query;
-    res.json(await recentRequests(gateway, { status: statusFilter, api, client, text, limit: Math.min(500, Number(limit) || 200) }));
+    res.json(await recentRequests(gateway, { status: statusFilter, api, client, text, limit: Math.min(1000, Number(limit) || 200) }));
   } catch (error) {
     sendServerError(res, error, 'Failed to load requests');
   }

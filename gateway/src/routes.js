@@ -1,22 +1,27 @@
 // Route matching: /{api basePath}{OpenAPI path template}, e.g. /acme/orders/orders/{id}.
+// {name} matches one path segment; {name+} matches the rest of the path, slashes included
+// (e.g. /files/{path+} for a website or file server behind the gateway).
 
 const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const PARAM = /^\{([^/{}]+)\}$/;
 
 const compileTemplate = (template) => {
   const names = [];
+  let greedy = false;
   const pattern = template
     .split(/(\{[^/{}]+\})/)
     .map((part) => {
       const param = part.match(PARAM);
       if (param) {
-        names.push(param[1]);
-        return '([^/]+)';
+        const rest = param[1].endsWith('+');
+        greedy = greedy || rest;
+        names.push(rest ? param[1].slice(0, -1) : param[1]);
+        return rest ? '(.+)' : '([^/]+)';
       }
       return escapeRegex(part);
     })
     .join('');
-  return { regex: new RegExp(`^${pattern}/?$`), names };
+  return { regex: new RegExp(`^${pattern}/?$`), names, greedy };
 };
 
 const normalizeBasePath = (basePath) => `/${String(basePath).split('/').filter(Boolean).join('/')}`;
@@ -31,7 +36,9 @@ const compileRoutes = (apis) => apis
       // Parameters and request body from the OpenAPI document, for the Validate steps.
       contract: operation.contract || null,
       ...compileTemplate(operation.path),
-    })),
+    }))
+      // {name+} operations are tried last, so /items/{id} wins over /{path+}.
+      .sort((a, b) => Number(a.greedy) - Number(b.greedy)),
   }))
   // Longest base path first, so /acme/orders/v2 wins over /acme/orders.
   .sort((a, b) => b.basePath.length - a.basePath.length);

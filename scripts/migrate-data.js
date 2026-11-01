@@ -26,6 +26,7 @@
 //     usable backend URL get the default flow, which returns the request.
 //   - Invoke steps for "the API's backend" without a URL get the backend URL of their policy's API
 //   - adds GatewayNodes.host and portOffset (where a node runs) and GatewayHandlers.nodeId (a handler for one node)
+//   - adds Apis.access (public APIs need no token) and GatewayHandlers.homePath (where / redirects)
 // Safe to re-run: anything already in the new format is skipped.
 // Dry run by default; pass --apply to write the changes.
 require('dotenv').config();
@@ -74,6 +75,7 @@ const NEW_COLUMNS = [
     policyId: { type: DataTypes.UUID, allowNull: true },
     connectionId: { type: DataTypes.UUID, allowNull: true },
     catalogId: { type: DataTypes.UUID, allowNull: true },
+    access: { type: DataTypes.STRING(20), allowNull: false, defaultValue: 'subscription' },
   }],
   [ApiProduct, {
     catalogId: { type: DataTypes.UUID, allowNull: true },
@@ -98,6 +100,7 @@ const NEW_COLUMNS = [
   [GatewayHandler, {
     policyId: { type: DataTypes.UUID, allowNull: true },
     nodeId: { type: DataTypes.UUID, allowNull: true },
+    homePath: { type: DataTypes.STRING(200), allowNull: true },
   }],
   [Policy, {
     flow: { type: sequelize.getDialect() === 'mysql' ? DataTypes.TEXT('long') : DataTypes.TEXT, allowNull: true },

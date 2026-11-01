@@ -400,6 +400,24 @@ describe('gateway features in the console', () => {
       await node.destroy();
     });
 
+    it('refuses the admin UI port as an address and explains a node port that is not management', async () => {
+      const adminPort = await api('post', `${gatewayPath(pushGatewayId)}/nodes`, publisher).send({ name: 'push-admin', url: 'https://203.0.113.7:9445' });
+      assert.equal(adminPort.status, 400);
+      assert.match(adminPort.body.error, /admin UI.*https:\/\/203\.0\.113\.7:9443/);
+
+      // The node's admin server has the same certificate, so the console reaches it and gets a 404.
+      const added = await api('post', `${gatewayPath(pushGatewayId)}/nodes`, publisher).send({ name: 'push-wrong-port', url: `https://127.0.0.1:${pushNode.ports.adminPort}`, portOffset: 600 });
+      assert.equal(added.status, 201, JSON.stringify(added.body));
+      assert.equal(added.body.check.reachable, false);
+      assert.match(added.body.check.error, /not its management port/);
+
+      // Without a configuration the node can't check a sign-in ticket, so none is issued.
+      const ticket = await api('post', `${gatewayPath(pushGatewayId)}/nodes/${added.body.node.id}/admin-ticket`, publisher);
+      assert.equal(ticket.status, 409);
+      assert.match(ticket.body.error, /no configuration yet/);
+      await GatewayNode.destroy({ where: { id: added.body.node.id } });
+    });
+
     it('sends the deployed configuration again to a node that comes back without it', async () => {
       // The node is recreated with an empty data volume: it answers, but has no configuration.
       await pushNode.node.stop();
@@ -431,6 +449,11 @@ describe('gateway features in the console', () => {
       const password = await adminCall(pushNode.ports.adminPort, pushBundle.managementCa, { method: 'POST', pathname: '/api/login', body: { email: publisher.email, password: 'publisher-pass-1' } });
       assert.equal(password.status, 503);
       assert.match(password.body.error, /Open the admin UI from the gateway page/);
+      // The console's address stays out of the message, and the sign-in page can ask where the console is.
+      assert.doesNotMatch(password.body.error, /ECONNREFUSED|No management console address/);
+      const options = await adminCall(pushNode.ports.adminPort, pushBundle.managementCa, { pathname: '/api/login-options' });
+      assert.equal(options.status, 200);
+      assert.ok('consoleUrl' in options.body);
 
       const issued = await api('post', `${gatewayPath(pushGatewayId)}/nodes/${await nodeId(pushGatewayId, 'push-1')}/admin-ticket`, publisher);
       assert.equal(issued.status, 200, JSON.stringify(issued.body));
@@ -458,6 +481,26 @@ describe('gateway features in the console', () => {
 
       assert.equal((await loginWith(await tokenFor())).status, 401);
       assert.equal((await loginWith('not-a-ticket')).status, 401);
+
+      // Signed like the console does, with the clock moved: a few minutes off still works (office PC
+      // and cloud server clocks differ), a long-expired link says so, another issuer means old config.
+      const jwt = require('jsonwebtoken');
+      const { getPki } = require('../utils/pki');
+      const { issuer, ADMIN_AUDIENCE } = require('../utils/gatewayTokens');
+      const { tokenKey } = await getPki();
+      const signed = ({ ageSeconds, iss = issuer() }) => jwt.sign({
+        gatewayId: pushGatewayId, name: 'Publisher', email: publisher.email, organization: 'Org',
+        iat: Math.floor(Date.now() / 1000) - ageSeconds, exp: Math.floor(Date.now() / 1000) - ageSeconds + 60,
+      }, tokenKey.privateKeyPem, {
+        algorithm: 'RS256', keyid: tokenKey.kid, subject: 'x', audience: ADMIN_AUDIENCE, issuer: iss, jwtid: require('crypto').randomUUID(),
+      });
+      assert.equal((await loginWith(signed({ ageSeconds: 180 }))).status, 200);
+      const expired = await loginWith(signed({ ageSeconds: 900 }));
+      assert.equal(expired.status, 401);
+      assert.match(expired.body.error, /expired.*clocks/);
+      const oldConfig = await loginWith(signed({ ageSeconds: 0, iss: 'https://another-console.example' }));
+      assert.equal(oldConfig.status, 401);
+      assert.match(oldConfig.body.error, /configuration is out of date/);
 
       const pushNodeId = await nodeId(pushGatewayId, 'push-1');
       assert.equal((await api('post', `${gatewayPath(pushGatewayId)}/nodes/${pushNodeId}/admin-ticket`, member)).status, 403);
@@ -726,6 +769,13 @@ describe('gateway features in the console', () => {
       const page = await browser('get', `/developer/gateways/${pushGatewayId}/requests`, publisher);
       assert.equal(page.status, 200);
       assert.match(page.text, /Live requests/);
+      // A fetch limit, rows per page and a pager; each row opens its own log, so there is no separate panel.
+      assert.match(page.text, /id="filterLimit" name="limit"/);
+      assert.match(page.text, /id="pageSize"/);
+      assert.match(page.text, /id="pager"/);
+      assert.doesNotMatch(page.text, /id="requestDetail"/);
+      const many = await api('get', `${gatewayPath(pushGatewayId)}/requests?limit=1000`, publisher);
+      assert.equal(many.status, 200);
       assert.equal((await browser('get', `/developer/gateways/${pushGatewayId}/requests`, outsider)).status, 404);
     });
   });

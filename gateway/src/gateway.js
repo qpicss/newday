@@ -348,6 +348,10 @@ const createGateway = (overrides = {}) => {
     testFlow,
     verifyAdmin: (email, password) => link.verifyAdmin(email, password),
     verifyAdminTicket: (ticket) => verifyTicket(ticket, runtime),
+    consoleUrl: () => {
+      const value = runtime?.management?.consoleUrl;
+      return typeof value === 'string' && /^https?:\/\//.test(value) ? value : null;
+    },
   };
 
   const isAdminEnabled = () => settings.adminEnabled && (!runtime || runtime.admin.enabled !== false);

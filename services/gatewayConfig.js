@@ -25,6 +25,12 @@ const isAbsoluteHttpUrl = (value) => {
   }
 };
 
+// The gateway's page in the console, from APP_URL (null without it).
+const consoleUrlOf = (gateway) => {
+  const base = process.env.APP_URL;
+  return isAbsoluteHttpUrl(base) ? `${base.replace(/\/+$/, '')}/developer/gateways/${gateway.id}` : null;
+};
+
 const byKey = (key) => (a, b) => String(a[key]).localeCompare(String(b[key]));
 
 const flowConfig = (policy) => (policy
@@ -163,6 +169,8 @@ const buildGatewayConfig = async (gateway) => {
       name: api.name,
       version: api.version,
       basePath: api.basePath,
+      // Only public APIs say so, so other configurations (and their hashes) stay the same.
+      ...(api.access === 'public' && { access: 'public' }),
       upstreamUrl: isAbsoluteHttpUrl(api.baseUrl) ? api.baseUrl : null,
       connectionId: api.connection ? api.connection.id : null,
       operations: listOperations(api.spec).map(({ method, path }) => ({
@@ -182,6 +190,7 @@ const buildGatewayConfig = async (gateway) => {
     port: handler.port,
     protocol: handler.protocol,
     ...(handler.nodeId && { nodes: [nodeNames.get(handler.nodeId)].filter(Boolean) }),
+    ...(handler.homePath && { homePath: handler.homePath }),
     flow: flowConfig(handler.policy),
     ...(handler.protocol === 'https' && {
       tls: { certificate: handler.certificatePem, privateKey: open(handler.privateKeySealed) },
@@ -241,7 +250,8 @@ const buildGatewayConfig = async (gateway) => {
     subscriptions,
     observability: observabilityConfig(gateway),
     admin: { enabled: gateway.observability.adminUi.enabled !== false },
-    management: { linkUrl: link.enabled ? link.publicUrl : null },
+    // consoleUrl: the gateway's page, which the node's sign-in page links to (Open admin UI is there).
+    management: { linkUrl: link.enabled ? link.publicUrl : null, consoleUrl: consoleUrlOf(gateway) },
   };
 
   const hash = crypto.createHash('sha256').update(JSON.stringify(core)).digest('hex');

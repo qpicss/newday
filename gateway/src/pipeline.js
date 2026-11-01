@@ -1,6 +1,8 @@
 // The request path for API traffic on a connection handler:
 // match route -> authenticate -> check subscription -> rate limit -> the port's policy flow
 // (if any) -> the API's policy flow -> answer the client.
+// A public API (access 'public') skips the token, subscription and product rate limit: its
+// flows see no consumer. A handler with a home path redirects GET / to it.
 // A flow calls backends only through its "Invoke service" steps (or http.* in scripts); a flow
 // without any (the default for a new API) answers with the request it received.
 // Every request ends in one observability event (metrics, request log, usage, off-load, log line).
@@ -153,6 +155,13 @@ const createRequestHandler = ({ handler, getRuntime, settings, rateLimiter, poli
       throw new HttpError(503, 'not_configured', 'This gateway has not received a configuration yet');
     }
 
+    if (handler.homePath && url.pathname === '/' && (req.method === 'GET' || req.method === 'HEAD')) {
+      res.writeHead(302, { ...responseHeaders, location: `${handler.homePath}${url.search}`, 'content-length': 0 });
+      res.end();
+      finish(302, { redirect: handler.homePath });
+      return;
+    }
+
     const route = matchRoute(runtime.routes, req.method, url.pathname);
     if (route.status === 404) throw new HttpError(404, 'not_found', 'No API operation matches this path');
     if (route.status === 405) {
@@ -160,20 +169,25 @@ const createRequestHandler = ({ handler, getRuntime, settings, rateLimiter, poli
     }
     Object.assign(event, { api: route.api.name, apiId: route.api.id });
 
-    let clientId;
-    let access;
-    try {
-      clientId = authenticate(req, runtime);
-      event.clientId = clientId;
-      access = findProduct(runtime, route.api.id, clientId);
-    } catch (error) {
-      observability.metrics.authFailures.inc({ reason: error.code });
-      throw error;
+    const isPublic = route.api.access === 'public';
+    let clientId = null;
+    let product = null;
+    let application = null;
+    if (isPublic) {
+      event.access = 'public';
+    } else {
+      try {
+        clientId = authenticate(req, runtime);
+        event.clientId = clientId;
+        ({ product, application } = findProduct(runtime, route.api.id, clientId));
+      } catch (error) {
+        observability.metrics.authFailures.inc({ reason: error.code });
+        throw error;
+      }
+      Object.assign(event, { productId: product.id, product: product.name, application });
     }
-    const { product, application } = access;
-    Object.assign(event, { productId: product.id, product: product.name, application });
 
-    if (product.rateLimit && product.rateLimit.enabled) {
+    if (product && product.rateLimit && product.rateLimit.enabled) {
       const localShare = Math.max(1, Math.ceil(product.rateLimit.requests / runtime.nodeCount));
       const limit = rateLimiter.shared ? product.rateLimit.requests : localShare;
       const result = await rateLimiter.hit(`${clientId}:${product.id}`, limit, product.rateLimit.period, localShare);
@@ -202,7 +216,7 @@ const createRequestHandler = ({ handler, getRuntime, settings, rateLimiter, poli
     const shared = {
       original,
       api: { id: route.api.id, name: route.api.name, version: route.api.version, basePath: route.api.basePath },
-      consumer: { clientId, application, product: { id: product.id, name: product.name } },
+      consumer: { clientId, application, product: product && { id: product.id, name: product.name } },
       requestId,
       traceId: span.traceId,
     };

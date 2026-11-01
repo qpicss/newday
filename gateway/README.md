@@ -38,8 +38,9 @@ The runtime that serves API traffic for OAuth Server. It is a separate Node.js 2
   - a circuit breaker;
   - upstream credentials (basic, bearer or an API key header);
   - TLS: your own CA, a client certificate for mTLS, and the server name.
-- **Requests.** Calls go to `<handler>/<API base path>/<OpenAPI path>`. The path must match an operation in the API's OpenAPI document.
-- **Authentication.** Callers send `Authorization: Bearer <token>`, with a token from the console's `POST /oauth/token` (client credentials). The gateway verifies the token with the public key it was given, so it never calls the console per request.
+- **Requests.** Calls go to `<handler>/<API base path>/<OpenAPI path>`. The path must match an operation in the API's OpenAPI document. A path parameter written `{name+}` (for example `/{path+}`) matches the rest of the path, slashes included; such operations are tried after the others.
+- **Authentication.** Callers send `Authorization: Bearer <token>`, with a token from the console's `POST /oauth/token` (client credentials). The gateway verifies the token with the public key it was given, so it never calls the console per request. An API whose access is **public** needs no token: the gateway skips the token, subscription and product rate limit, and its flows see no consumer.
+- **Home path.** A handler with a home path (for example `/site/`) redirects `GET /` to it, keeping the query string. Without one, `/` answers 404.
 - **Restarts.** The last configuration is saved to the data directory, so a restarted node serves traffic straight away. An invalid configuration is rejected and the previous one stays live.
 
 ## Run with Docker
@@ -159,7 +160,7 @@ Open `https://<node>:9445`. The server uses the gateway's certificate, so trust 
 
 - **Sign-in.** Only console accounts that are **org admins of the organization that owns the gateway** (or platform admins) get in. There are two ways:
   - **Open admin UI** on the gateway page in the console (on a node, or in its addresses). The console signs a one-time ticket that is valid for 60 seconds and opens the admin UI with it. The node checks the ticket with the token key from its configuration, so this works for push nodes that can't reach the console. The node needs a configuration first.
-  - Email and password on the sign-in page. The node checks them with the console over the mTLS link and never stores them, so this needs a node that can reach the console (pull mode).
+  - Email and password on the sign-in page. The node checks them with the console over the mTLS link and never stores them, so this needs a node that can reach the console (pull mode). When it can't, the sign-in page says so and, if the console has `APP_URL` set, links to the gateway's page in the console.
 - **Sessions.** Sessions last 8 hours, in an `HttpOnly`, `Secure`, `SameSite=Strict` cookie.
 - **Pages:**
   - an overview: configuration, handlers, APIs, connections and their circuit state, certificate and off-load status;

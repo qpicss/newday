@@ -273,6 +273,34 @@ describe('gateway deployment', () => {
     assert.equal(res.status, 403);
   });
 
+  it("serves a public API without a token and redirects / to the port's home path", async () => {
+    const gateway = await api('get', gatewayUrl(), publisher);
+    const handlerUrl = `${gatewayUrl()}/handlers/${gateway.body.gateway.handlers[0].id}`;
+    assert.equal((await api('put', `/api/org/apis/${apiId}`, publisher).send({ access: 'anyone' })).status, 400);
+    assert.equal((await api('put', handlerUrl, publisher).send({ homePath: 'https://elsewhere.test/' })).status, 400);
+
+    const made = await api('put', `/api/org/apis/${apiId}`, publisher).send({ access: 'public' });
+    assert.equal(made.body.api.access, 'public');
+    const home = await api('put', handlerUrl, publisher).send({ homePath: '/orders-api/orders' });
+    assert.equal(home.body.handler.homePath, '/orders-api/orders');
+    const preview = await api('get', gatewayUrl(), publisher);
+    assert.equal(preview.body.gateway.state, 'outdated');
+    await push();
+
+    const anonymous = await callGateway('/orders-api/orders/1');
+    assert.equal(anonymous.status, 200);
+    assert.equal(upstream.requests.at(-1).headers['x-gateway-client-id'], undefined);
+    const root = await fetch(`http://127.0.0.1:${handlerPort}/?a=1`, { redirect: 'manual' });
+    assert.equal(root.status, 302);
+    assert.equal(root.headers.get('location'), '/orders-api/orders?a=1');
+
+    await api('put', `/api/org/apis/${apiId}`, publisher).send({ access: 'subscription' });
+    await api('put', handlerUrl, publisher).send({ homePath: null });
+    await push();
+    assert.equal((await callGateway('/orders-api/orders/1')).status, 401);
+    assert.equal((await fetch(`http://127.0.0.1:${handlerPort}/`, { redirect: 'manual' })).status, 404);
+  });
+
   it('attaches only running gateways to a catalog', async () => {
     const withCatalog = await api('post', '/api/org/gateways', publisher).send({ name: 'Eager', publicUrl: 'https://eager.test', catalogId });
     assert.equal(withCatalog.status, 409);

@@ -26,6 +26,7 @@ UI.bindForm(document.getElementById('gatewayForm'), {
             method: 'PUT',
             body: {
                 basePath: formData.get('basePath'),
+                access: formData.get('access'),
                 policyId: formData.get('policyId') || null,
                 connectionId: formData.get('connectionId') || null,
             },

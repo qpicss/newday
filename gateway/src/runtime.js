@@ -12,6 +12,10 @@ const SCHEMA = 2;
 const PROTOCOLS = ['http', 'https'];
 const PERIODS = ['second', 'minute', 'hour', 'day'];
 const AUTH_TYPES = ['none', 'basic', 'bearer', 'header'];
+// 'subscription' (default): a token and an approved subscription. 'public': anyone, no token.
+const ACCESS = ['subscription', 'public'];
+// A handler's home: where a request for "/" on its port is redirected, e.g. /site/.
+const HOME_PATH = /^\/[^\s?#\\]*$/;
 
 class ConfigError extends Error {}
 
@@ -30,6 +34,8 @@ const validateHandlers = (handlers) => {
     assert(!ports.has(handler.port), `Port ${handler.port} is used by more than one handler`);
     ports.add(handler.port);
     assert(PROTOCOLS.includes(handler.protocol), `Handler "${handler.name}" must use http or https`);
+    assert(handler.homePath === undefined || handler.homePath === null || (typeof handler.homePath === 'string' && HOME_PATH.test(handler.homePath) && handler.homePath !== '/' && !handler.homePath.startsWith('//') && handler.homePath.length <= 200),
+      `Handler "${handler.name}" has an invalid home path; use a path such as /site/`);
     assert(handler.nodes === undefined || (Array.isArray(handler.nodes) && handler.nodes.every((name) => typeof name === 'string')), `Handler "${handler.name}" must list its nodes by name`);
     if (handler.protocol === 'https') {
       assert(isPlainObject(handler.tls) && handler.tls.certificate && handler.tls.privateKey, `HTTPS handler "${handler.name}" needs a certificate and private key`);
@@ -57,6 +63,7 @@ const validateApis = (apis, connectionIds) => {
     const basePath = normalizeBasePath(api.basePath);
     assert(!basePaths.has(basePath), `APIs "${basePaths.get(basePath)}" and "${api.name}" share the base path ${basePath}`);
     basePaths.set(basePath, api.name);
+    assert(api.access === undefined || ACCESS.includes(api.access), `API "${api.name}" has an unknown access mode`);
 
     // Only Invoke steps that call "the API's backend" need it.
     if (api.upstreamUrl) {

@@ -36,6 +36,13 @@ const Api = sequelize.define('Api', {
   basePath: {
     type: DataTypes.STRING(200),
   },
+  // 'subscription': callers need a token and an approved subscription. 'public': anyone may
+  // call it without a token (a website or open data); its products' rate limits don't apply.
+  access: {
+    type: DataTypes.STRING(20),
+    allowNull: false,
+    defaultValue: 'subscription',
+  },
   // How gateways reach the upstream (timeouts, retries, credentials, TLS); defaults when empty
   connectionId: {
     type: DataTypes.UUID,

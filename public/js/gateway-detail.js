@@ -113,15 +113,26 @@ if (nodeForm) {
 // opened before the request so that popup blockers allow it.
 document.querySelectorAll('[data-open-admin]').forEach((button) => {
     button.addEventListener('click', async () => {
+        // The tab opens right away (inside the click, so it isn't blocked as a pop-up) and says what is
+        // happening, so it is never left blank.
         const tab = window.open('', '_blank');
+        const say = (text) => {
+            if (!tab || tab.closed) return;
+            tab.document.title = 'Gateway admin';
+            tab.document.body.style.font = '15px system-ui, sans-serif';
+            tab.document.body.style.margin = '40px';
+            tab.document.body.textContent = text;
+        };
         if (tab) tab.opener = null;
+        say('Opening the admin UI…');
         UI.setLoading(button, true, 'Opening…');
         try {
             const { url } = await UI.sendJson(button.dataset.openAdmin, { method: 'POST' });
+            say(`Opening ${new URL(url).host}… If nothing loads, your browser can't reach this address: check the node's admin port (firewall, DNS).`);
             if (tab) tab.location.href = url;
             else window.location.href = url;
         } catch (error) {
-            if (tab) tab.close();
+            say(`The admin UI could not be opened: ${error.message}`);
             UI.toast(error.message, 'error');
         }
         UI.setLoading(button, false);
@@ -206,6 +217,7 @@ UI.bindForm(handlerForm, {
                 protocol,
                 policyId: formData.get('policyId') || null,
                 nodeId: formData.get('nodeId') || null,
+                homePath: formData.get('homePath') || null,
                 ...(protocol === 'https' && { tlsMode }),
                 ...(protocol === 'https' && tlsMode === 'custom' && {
                     certificatePem: formData.get('certificatePem'),
@@ -251,6 +263,24 @@ document.querySelectorAll('[data-handler-node]').forEach((select) => {
             UI.toast(error.message, 'error');
         }
         select.disabled = false;
+    });
+});
+
+// Home path (where / is redirected): saved when the field changes.
+document.querySelectorAll('[data-handler-home]').forEach((input) => {
+    let saved = input.value;
+    input.addEventListener('change', async () => {
+        input.disabled = true;
+        try {
+            const result = await UI.sendJson(input.dataset.handlerHome, { method: 'PUT', body: { homePath: input.value.trim() || null } });
+            input.value = result.handler.homePath || '';
+            saved = input.value;
+            UI.toast(saved ? `${input.dataset.handlerName} redirects / to ${saved}. Push to deploy it.` : `${input.dataset.handlerName} no longer redirects /. Push to deploy it.`);
+        } catch (error) {
+            input.value = saved;
+            UI.toast(error.message, 'error');
+        }
+        input.disabled = false;
     });
 });
 

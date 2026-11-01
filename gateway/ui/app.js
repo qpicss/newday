@@ -74,11 +74,23 @@
     }
 
     // ---------------------------------------------------------------- auth
+    // A link to the gateway's page in the console, where Open admin UI signs in without a password.
+    function showConsoleLink(url) {
+        const link = document.getElementById('console-link');
+        if (typeof url !== 'string' || !/^https?:\/\//.test(url)) return;
+        link.href = url;
+        link.hidden = false;
+    }
+
     function showLogin() {
         stopStream();
         clearInterval(state.timer);
         document.getElementById('app-view').hidden = true;
         document.getElementById('login-view').hidden = false;
+        fetch('/api/login-options', { credentials: 'same-origin' })
+            .then((response) => (response.ok ? response.json() : null))
+            .then((options) => showConsoleLink(options && options.consoleUrl))
+            .catch(() => {});
     }
 
     async function showApp() {

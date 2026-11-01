@@ -123,6 +123,7 @@ a { color: var(--primary); }
     padding: 28px; border-radius: 14px; background: var(--surface); border: 1px solid var(--border);
 }
 .login-card h1 { font-size: 22px; margin-top: 8px; }
+.console-link { justify-content: center; text-align: center; }
 
 /* Shell */
 .topbar { position: sticky; top: 0; z-index: 10; background: var(--surface); border-bottom: 1px solid var(--border); }

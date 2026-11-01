@@ -207,7 +207,7 @@ const invokeStep = async (node, state, ctx) => {
     Object.assign(headers, {
       'x-forwarded-for': ctx.forwarded.for,
       'x-forwarded-proto': ctx.forwarded.proto,
-      'x-gateway-client-id': ctx.clientId,
+      ...(ctx.clientId && { 'x-gateway-client-id': ctx.clientId }),
       ...(ctx.forwarded.host && { 'x-forwarded-host': ctx.forwarded.host }),
     });
   }

@@ -32,6 +32,12 @@ const GatewayHandler = sequelize.define('GatewayHandler', {
   tlsMode: {
     type: DataTypes.STRING(10),
   },
+  // Where a GET for "/" on this port is redirected, e.g. /site/ (a website served by a public
+  // API). Empty: "/" is answered like any path without an API, with 404.
+  homePath: {
+    type: DataTypes.STRING(200),
+    allowNull: true,
+  },
   // Policy run for every request on this port, before the API's policy
   policyId: {
     type: DataTypes.UUID,

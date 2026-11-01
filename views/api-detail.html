@@ -108,7 +108,15 @@
                         <div class="field">
                             <label for="basePath">Base path</label>
                             <input class="input mono" type="text" id="basePath" name="basePath" value="<%= api.basePath || '' %>" maxlength="200" placeholder="/orders" aria-describedby="base-path-hint" required>
-                            <span id="base-path-hint" class="hint">Consumers call <code>&lt;gateway URL&gt;<%= api.basePath || '/orders' %>/&lt;operation path&gt;</code>. What happens next is up to the policy below.</span>
+                            <span id="base-path-hint" class="hint">Consumers call <code>&lt;gateway URL&gt;<%= api.basePath || '/orders' %>/&lt;operation path&gt;</code>. What happens next is up to the policy below. A path parameter written <code>{path+}</code> matches the rest of the path, slashes included.</span>
+                        </div>
+                        <div class="field">
+                            <label for="access">Access</label>
+                            <select class="select" id="access" name="access" aria-describedby="access-hint">
+                                <option value="subscription" <%= api.access !== 'public' ? 'selected' : '' %>>Applications with an approved subscription (token required)</option>
+                                <option value="public" <%= api.access === 'public' ? 'selected' : '' %>>Public: anyone, no token</option>
+                            </select>
+                            <span id="access-hint" class="hint">Public suits a website or open data. The gateway still needs the API in a published product of its catalog, but it doesn't check tokens or subscriptions and doesn't apply the product's rate limit, so protect the backend with the policy's Security step.</span>
                         </div>
                         <div class="field">
                             <label for="policyId">Policy</label>

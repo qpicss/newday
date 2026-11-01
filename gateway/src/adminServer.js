@@ -124,8 +124,12 @@ const createAdminServer = ({ credentials, logger, actions, isEnabled }) => {
         sendJson(res, 401, { error: 'The email or password is wrong, or this account is not an admin of the organization that owns this gateway.' });
         return;
       }
+      // The details (often a console address only reachable inside the office) go to the log only.
       logger.warn('admin sign-in unavailable', { error: error.message });
-      sendJson(res, 503, { error: `Signing in with a password needs the management console, which could not be reached (${error.message}). Open the admin UI from the gateway page in the console instead.` });
+      sendJson(res, 503, {
+        error: "This node can't reach the console to check your password. Open the admin UI from the gateway page in the console instead: its Open admin UI button signs you in directly.",
+        consoleUrl: actions.consoleUrl ? actions.consoleUrl() : null,
+      });
     }
   };
 
@@ -169,6 +173,11 @@ const createAdminServer = ({ credentials, logger, actions, isEnabled }) => {
     }
 
     try {
+      // Before signing in: where the console's page for this gateway is, for the sign-in page's link.
+      if (req.method === 'GET' && url.pathname === '/api/login-options') {
+        sendJson(res, 200, { consoleUrl: actions.consoleUrl ? actions.consoleUrl() : null });
+        return;
+      }
       if (req.method === 'POST' && url.pathname === '/api/login') {
         await login(req, res);
         return;
