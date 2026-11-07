@@ -27,11 +27,20 @@ UI.bindForm(document.getElementById('gatewayForm'), {
             body: {
                 basePath: formData.get('basePath'),
                 access: formData.get('access'),
-                policyId: formData.get('policyId') || null,
                 connectionId: formData.get('connectionId') || null,
             },
         });
         UI.flash('Gateway settings saved. Push your gateways to deploy them.');
+        window.location.reload();
+    },
+});
+
+UI.bindForm(document.getElementById('policyForm'), {
+    alert: document.getElementById('policy-alert'),
+    loadingLabel: 'Saving…',
+    submit: async (formData) => {
+        await UI.sendJson(apiUrl, { method: 'PUT', body: { policyId: formData.get('policyId') || null } });
+        UI.flash('Policy changed. Push your gateways to deploy it.');
         window.location.reload();
     },
 });

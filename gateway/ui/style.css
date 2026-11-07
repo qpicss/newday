@@ -241,3 +241,30 @@ tr.fresh { animation: fresh 1.2s ease-out; }
 
 .upstream-call { font-size: 12px; overflow-wrap: anywhere; margin-top: 2px; }
 .upstream-call.threat-found { color: var(--bad); }
+
+/* A request's log, in a row under it: its steps beside the log entry, as in a policy's test result */
+tr.clickable[aria-expanded="true"] { background: var(--surface-muted); }
+tr.clickable[aria-expanded="true"] > td { border-bottom-color: transparent; }
+.request-log-row > td { padding-top: 4px; background: var(--surface-muted); }
+.request-log { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 900px) { .request-log { grid-template-columns: minmax(0, 1fr); } }
+.flow-log-title { margin: 0 0 8px; font-size: 13px; }
+.flow-log { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.flow-log-flow { padding-top: 4px; color: var(--text-subtle); font-size: 11.5px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; }
+.log-step { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+.log-step.is-failed { border-color: var(--bad); background: var(--bad-soft); }
+.log-step.is-stopped { border-color: var(--warn); background: var(--warn-soft); }
+.log-step-body { display: grid; flex: 1; gap: 4px; min-width: 0; }
+.log-step-title { display: flex; justify-content: space-between; gap: 8px; font-size: 13.5px; font-weight: 600; }
+.log-step-kind { margin-left: 8px; color: var(--text-subtle); font-size: 12px; font-weight: 500; }
+.log-step-time { color: var(--text-subtle); font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.log-step-text { color: var(--text-muted); font-size: 12.5px; overflow-wrap: anywhere; }
+.log-step.is-failed .log-step-text { color: var(--bad); }
+.log-step-lines { margin: 0; color: var(--text-muted); font-family: var(--mono); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.step-icon { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 8px; background: var(--surface-muted); color: var(--text-muted); }
+.step-icon svg { width: 14px; height: 14px; }
+.step-icon.type-invoke, .step-icon.type-route, .step-icon.type-respond { background: var(--primary-soft); color: var(--primary); }
+.step-icon.type-validateRequest, .step-icon.type-validateBody { background: var(--good-soft); color: var(--good); }
+.step-icon.type-security { background: var(--bad-soft); color: var(--bad); }
+.step-icon.type-if, .step-icon.type-rateLimit { background: var(--warn-soft); color: var(--warn); }
+.step-icon.type-script, .step-icon.type-access { background: var(--primary-soft); color: var(--text); }

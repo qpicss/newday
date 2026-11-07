@@ -194,6 +194,43 @@ describe('checking steps', () => {
     assert.deepEqual(log.body.entries[0].threats, ['sql_injection in query.q']);
   });
 
+  it('logs every flow step of a request, without its values', async () => {
+    assert.equal((await push([validateBody(), security({ mode: 'monitor' }), invokeStep()], 'c6b')).status, 200);
+    const invalid = await call('/orders', { method: 'POST', ...json({ quantity: 0, note: 'secret-note' }) });
+    assert.equal(invalid.status, 422);
+    const [rejected] = (await manage('GET', '/v1/requests?limit=1')).body.entries;
+    // The gateway's own steps (without a flow) come around the policy's.
+    const policySteps = (entry) => entry.flow.filter((step) => step.flow);
+    const gatewaySteps = (entry) => entry.flow.filter((step) => !step.flow).map(({ type }) => type);
+    assert.deepEqual(gatewaySteps(rejected), ['receive', 'route', 'access', 'respond']);
+    assert.match(rejected.flow.at(-1).outcome, /^Answered 422/);
+    assert.equal(rejected.flow.at(-1).stop, true);
+    const [input, validate] = policySteps(rejected);
+    assert.deepEqual([input.type, validate.type], ['input', 'validateBody']);
+    assert.match(validate.outcome, /answered 422/);
+    assert.deepEqual(validate.problems, ['/quantity must be at least 1', '/note must be at most 10 characters long']);
+    assert.equal(typeof validate.durationMs, 'number');
+
+    const watched = await call(`/orders?q=${encodeURIComponent('1 UNION SELECT password FROM users')}`);
+    assert.equal(watched.status, 200);
+    const [served] = (await manage('GET', '/v1/requests?limit=1')).body.entries;
+    // The backend's answer streams to the client, so the flow ends at the Invoke step.
+    assert.deepEqual(policySteps(served).map(({ type }) => type), ['input', 'validateBody', 'security', 'invoke']);
+    assert.deepEqual(policySteps(served)[2].problems, ['sql_injection in query.q']);
+    assert.match(policySteps(served)[3].outcome, /answered 200/);
+    assert.match(served.flow.at(-1).outcome, /Passed the backend's answer through \(200\)/);
+    assert.doesNotMatch(JSON.stringify([rejected, served]), /secret-note|UNION SELECT/i);
+
+    // A request no API matches still gets its steps.
+    assert.equal((await call('/nowhere?token=abc')).status, 404);
+    const [lost] = (await manage('GET', '/v1/requests?limit=1')).body.entries;
+    assert.deepEqual(lost.flow.map(({ type }) => type), ['receive', 'route', 'respond']);
+    assert.match(lost.flow[1].outcome, /^No API operation matches \S*\/nowhere$/);
+    assert.equal(lost.flow[1].stop, true);
+    assert.match(lost.flow[2].outcome, /^Answered 404 not_found/);
+    assert.doesNotMatch(JSON.stringify(lost), /abc/);
+  });
+
   it('refuses addresses on the deny list or missing from the allow list', async () => {
     assert.equal((await push([security({ ipDeny: ['127.0.0.0/8'] }), invokeStep()], 'c7')).status, 200);
     const denied = await call('/orders');

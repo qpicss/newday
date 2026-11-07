@@ -13,10 +13,39 @@ const { HttpError, readBody, sendJson, withoutHopByHop } = require('./http');
 const { PolicyError } = require('./policy');
 const { startSpan } = require('./observability/tracing');
 const { createState, runFlow, finalResponse, flowData, scriptKey } = require('./flowEngine');
-const { invokeStep } = require('./invoke');
+const { invokeStep, loggableUrl } = require('./invoke');
 const { recordAnswer } = require('./threats');
 
 const REQUEST_ID = /^[\w.:-]{1,128}$/;
+const MAX_LOGGED_STEPS = 50;
+const MAX_STEP_LOGS = 20;
+const MAX_LOG_LENGTH = 500;
+const MAX_STEP_PROBLEMS = 10;
+
+// The steps of a request, for the request log: the gateway's own (receive, route, access, rate limit,
+// respond, without a `flow`) around the steps the flows ran, with what each decided and how long it took.
+// Problems name the place and the rule (as the 422 answer does); request values and bodies stay out,
+// and a called URL shows with its credentials masked, as in `upstream`.
+const flowLog = (trace) => (trace.length > MAX_LOGGED_STEPS ? [...trace.slice(0, MAX_LOGGED_STEPS - 1), trace[trace.length - 1]] : trace).map((step) => ({
+  ...(step.flow && { flow: step.flow }),
+  name: step.name,
+  type: step.type,
+  ...(step.stop && { stop: true }),
+  ...(step.outcome && { outcome: step.call?.url ? step.outcome.split(step.call.url).join(loggableUrl(step.call.url)) : step.outcome }),
+  ...(step.branch && { branch: step.branch }),
+  ...(step.durationMs !== undefined && { durationMs: step.durationMs }),
+  ...(step.error && { error: step.error }),
+  ...(step.logs?.length && {
+    logs: step.logs.slice(0, MAX_STEP_LOGS).map(([level, message]) => ({ level, message: String(message).slice(0, MAX_LOG_LENGTH) })),
+  }),
+  ...(step.problems?.length && {
+    problems: step.problems.slice(0, MAX_STEP_PROBLEMS).map((problem) => {
+      if (typeof problem === 'string') return problem;
+      if (problem.rule) return `${problem.rule} in ${problem.location}`; // a Security finding
+      return [problem.in, problem.name, problem.path, problem.message].filter(Boolean).join(' ');
+    }),
+  }),
+}));
 
 const authenticate = (req, runtime) => {
   const header = req.headers.authorization || '';
@@ -142,20 +171,38 @@ const createRequestHandler = ({ handler, getRuntime, settings, rateLimiter, poli
     bytesIn: Number(req.headers['content-length']) || 0,
   };
   let policyMs = 0;
+  // The steps of this request, kept only while the request log is on.
+  const trace = observability.requestLog.enabled ? [] : null;
+  const since = (start) => Math.round((performance.now() - start) * 10) / 10;
+  // A step the gateway itself takes; `stop` marks the one that ended the request early.
+  const gatewayStep = (type, name, outcome, extra = {}) => trace?.push({ type, name, outcome, ...extra });
+  gatewayStep('receive', 'Receive', `${req.method} ${url.pathname} on ${handler.name} (port ${handler.port}) from ${req.socket.remoteAddress}`);
 
-  const finish = (status, extra = {}) => {
-    Object.assign(event, extra, { status, durationMs: Math.round((performance.now() - started) * 10) / 10 });
+  const finish = (status, extra = {}, message = null) => {
+    Object.assign(event, extra, { status, durationMs: since(started) });
     if (policyMs) event.policyMs = Math.round(policyMs * 10) / 10;
+    if (trace) {
+      let outcome = `Answered ${status}`;
+      if (extra.error) outcome = `Answered ${status} ${extra.error}${message ? `: ${message}` : ''}`;
+      else if (extra.redirect) outcome = `Redirected to ${extra.redirect} (${status})`;
+      else if (message) outcome = `${message} (${status})`;
+      else if (extra.reply) outcome = `Answered ${status}, replied by "${extra.reply}"`;
+      else if (extra.echoed) outcome = `Answered ${status} with the request it received`;
+      gatewayStep('respond', 'Respond', outcome, { durationMs: event.durationMs, ...(status >= 400 && { stop: true }) });
+      event.flow = flowLog(trace);
+    }
     observability.record(event);
   };
 
   try {
     const runtime = getRuntime();
     if (!runtime) {
+      gatewayStep('route', 'Route', 'No configuration received yet', { stop: true });
       throw new HttpError(503, 'not_configured', 'This gateway has not received a configuration yet');
     }
 
     if (handler.homePath && url.pathname === '/' && (req.method === 'GET' || req.method === 'HEAD')) {
+      gatewayStep('route', 'Route', `Home path of ${handler.name}`);
       res.writeHead(302, { ...responseHeaders, location: `${handler.homePath}${url.search}`, 'content-length': 0 });
       res.end();
       finish(302, { redirect: handler.homePath });
@@ -163,11 +210,16 @@ const createRequestHandler = ({ handler, getRuntime, settings, rateLimiter, poli
     }
 
     const route = matchRoute(runtime.routes, req.method, url.pathname);
-    if (route.status === 404) throw new HttpError(404, 'not_found', 'No API operation matches this path');
+    if (route.status === 404) {
+      gatewayStep('route', 'Route', `No API operation matches ${url.pathname}`, { stop: true });
+      throw new HttpError(404, 'not_found', 'No API operation matches this path');
+    }
     if (route.status === 405) {
+      gatewayStep('route', 'Route', `${url.pathname} takes ${route.allow.join(', ')}, not ${req.method}`, { stop: true });
       throw new HttpError(405, 'method_not_allowed', `Use ${route.allow.join(', ')} for this path`, { allow: route.allow.join(', ') });
     }
     Object.assign(event, { api: route.api.name, apiId: route.api.id });
+    gatewayStep('route', 'Route', `${route.api.name}: ${req.method} ${route.path}`);
 
     const isPublic = route.api.access === 'public';
     let clientId = null;
@@ -175,29 +227,36 @@ const createRequestHandler = ({ handler, getRuntime, settings, rateLimiter, poli
     let application = null;
     if (isPublic) {
       event.access = 'public';
+      gatewayStep('access', 'Access', 'Public API: no token needed');
     } else {
+      const checked = performance.now();
       try {
         clientId = authenticate(req, runtime);
         event.clientId = clientId;
         ({ product, application } = findProduct(runtime, route.api.id, clientId));
       } catch (error) {
         observability.metrics.authFailures.inc({ reason: error.code });
+        gatewayStep('access', 'Access', error instanceof HttpError ? `Refused: ${error.message}` : 'Refused', { durationMs: since(checked), stop: true });
         throw error;
       }
       Object.assign(event, { productId: product.id, product: product.name, application });
+      gatewayStep('access', 'Access', `Token of ${application || clientId} accepted, subscribed to ${product.name}`, { durationMs: since(checked) });
     }
 
     if (product && product.rateLimit && product.rateLimit.enabled) {
+      const checked = performance.now();
       const localShare = Math.max(1, Math.ceil(product.rateLimit.requests / runtime.nodeCount));
       const limit = rateLimiter.shared ? product.rateLimit.requests : localShare;
       const result = await rateLimiter.hit(`${clientId}:${product.id}`, limit, product.rateLimit.period, localShare);
       Object.assign(responseHeaders, rateLimitHeaders(result));
       if (!result.allowed) {
         observability.metrics.rateLimited.inc({ product: product.name });
+        gatewayStep('rateLimit', 'Rate limit', `Limit of ${result.limit} per ${product.rateLimit.period} reached, retry in ${result.resetSeconds} s`, { durationMs: since(checked), stop: true });
         throw new HttpError(429, 'rate_limited', `Rate limit of ${product.rateLimit.requests} requests per ${product.rateLimit.period} reached`, {
           'retry-after': String(result.resetSeconds),
         });
       }
+      gatewayStep('rateLimit', 'Rate limit', `${result.remaining} of ${result.limit} left this ${product.rateLimit.period}`, { durationMs: since(checked) });
     }
 
     const rawBody = await readBody(req, settings.maxBodyBytes);
@@ -256,6 +315,7 @@ const createRequestHandler = ({ handler, getRuntime, settings, rateLimiter, poli
       state,
       shared,
       runScript,
+      trace,
       checks: {
         contract: route.operation.contract || null,
         remoteAddress: req.socket.remoteAddress,
@@ -299,7 +359,7 @@ const createRequestHandler = ({ handler, getRuntime, settings, rateLimiter, poli
       res.writeHead(upstream.statusCode, { ...withoutHopByHop(upstream.headers), ...responseHeaders });
       upstream.pipe(res);
       upstream.on('error', () => res.destroy());
-      res.on('finish', () => finish(upstream.statusCode, { bytesOut: Number(upstream.headers['content-length']) || undefined }));
+      res.on('finish', () => finish(upstream.statusCode, { bytesOut: Number(upstream.headers['content-length']) || undefined }, "Passed the backend's answer through"));
       return;
     }
 
@@ -316,7 +376,7 @@ const createRequestHandler = ({ handler, getRuntime, settings, rateLimiter, poli
   } catch (error) {
     if (error instanceof HttpError) {
       sendJson(res, error.status, { error: error.code, message: error.message, requestId }, { ...responseHeaders, ...error.headers });
-      finish(error.status, { error: error.code });
+      finish(error.status, { error: error.code }, error.message);
       return;
     }
     if (error instanceof PolicyError) {

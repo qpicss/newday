@@ -1,7 +1,7 @@
 // Gateway admin UI. All server data is inserted with textContent.
 (function () {
     const page = document.getElementById('page');
-    const state = { user: null, overview: null, stream: null, paused: false, rows: [], filters: { status: '', api: '', text: '' }, timer: null };
+    const state = { user: null, overview: null, stream: null, paused: false, rows: [], expanded: new Set(), filters: { status: '', api: '', text: '' }, timer: null };
 
     // ---------------------------------------------------------------- helpers
     function h(tag, attributes = {}, children = []) {
@@ -214,25 +214,114 @@
             h('td', { class: 'hide-sm', text: entry.api || '—' }),
             h('td', { class: 'hide-sm', text: entry.application || entry.clientId || '—' }),
         ]);
-        const open = () => showDetail(entry);
-        row.addEventListener('click', open);
-        row.addEventListener('keydown', (event) => { if (event.key === 'Enter') open(); });
+        row.setAttribute('aria-expanded', String(state.expanded.has(entry.requestId)));
+        const toggle = () => {
+            if (window.getSelection()?.toString()) return; // selecting text, not opening
+            const open = !state.expanded.has(entry.requestId);
+            row.setAttribute('aria-expanded', String(open));
+            if (open) {
+                state.expanded.add(entry.requestId);
+                row.after(logRow(entry));
+            } else {
+                state.expanded.delete(entry.requestId);
+                if (row.nextElementSibling?.classList.contains('request-log-row')) row.nextElementSibling.remove();
+            }
+        };
+        row.addEventListener('click', toggle);
+        row.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                toggle();
+            }
+        });
         return row;
     }
 
-    function showDetail(entry) {
-        const detail = document.getElementById('request-detail');
-        const pre = h('pre', { text: JSON.stringify(entry, null, 2) });
-        detail.replaceChildren(card(`${entry.method} ${entry.path}`, h('div', { class: 'card-body detail' }, pre),
-            h('button', { class: 'btn btn-ghost btn-sm', type: 'button', text: 'Close', onclick: () => detail.replaceChildren() })));
-        detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    // A request's row followed by its log, when it is open.
+    const requestRows = (entry, fresh) => {
+        const row = requestRow(entry, fresh);
+        return state.expanded.has(entry.requestId) ? [row, logRow(entry)] : [row];
+    };
+
+    const STEP_TYPES = {
+        receive: 'Receive', route: 'Route', access: 'Access', rateLimit: 'Rate limit', respond: 'Respond',
+        input: 'Input', output: 'Output', script: 'Gateway script', if: 'If', invoke: 'Invoke service',
+        validateRequest: 'Validate request', validateBody: 'Validate body', security: 'Security',
+    };
+
+    // The console's step icons.
+    const STEP_ICONS = {
+        receive: '<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3"/>',
+        route: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+        access: '<circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3L21 2M17 6l3 3M15 8l2 2"/>',
+        rateLimit: '<path d="M12 14l4-4"/><path d="M3.3 17a9 9 0 1 1 17.4 0"/>',
+        respond: '<path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>',
+        input: '<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3"/>',
+        output: '<path d="M4 22V4M4 4h12l-2 4 2 4H4"/>',
+        script: '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M10 13l-2 2 2 2M14 13l2 2-2 2"/>',
+        if: '<circle cx="6" cy="5" r="2.5"/><circle cx="6" cy="19" r="2.5"/><circle cx="18" cy="7" r="2.5"/><path d="M6 7.5v9M18 9.5c0 4-4 4.5-9.5 7.5"/>',
+        invoke: '<path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/>',
+        validateRequest: '<path d="M11 6h10M11 12h10M11 18h10"/><path d="M3 6l1.5 1.5L7 5M3 12l1.5 1.5L7 11M3 18l1.5 1.5L7 17"/>',
+        validateBody: '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M9 15l2 2 4-4"/>',
+        security: '<path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z"/><path d="M9 12l2 2 4-4"/>',
+    };
+
+    function stepIcon(type) {
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        for (const [name, value] of Object.entries({ viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true' })) {
+            svg.setAttribute(name, value);
+        }
+        svg.innerHTML = STEP_ICONS[type] || STEP_ICONS.route;
+        return h('span', { class: `step-icon type-${type}` }, svg);
+    }
+
+    // Every step of the request, in order: the gateway's own steps around the steps of the port's and the API's policies.
+    function flowLog(steps) {
+        const items = [];
+        let group;
+        for (const step of steps) {
+            const name = step.flow ? `Policy: ${step.flow}` : 'Gateway';
+            if (name !== group) {
+                group = name;
+                items.push(h('li', { class: 'flow-log-flow', text: name }));
+            }
+            const kind = STEP_TYPES[step.type] || step.type;
+            const lines = [...(step.problems || []), ...(step.logs || []).map((line) => `[${line.level}] ${line.message}`)];
+            items.push(h('li', { class: `log-step${step.error ? ' is-failed' : step.stop ? ' is-stopped' : ''}` }, [
+                stepIcon(step.type),
+                h('div', { class: 'log-step-body' }, [
+                    h('div', { class: 'log-step-title' }, [
+                        h('span', {}, [step.name, step.name !== kind ? h('span', { class: 'log-step-kind', text: kind }) : null]),
+                        step.durationMs !== undefined ? h('span', { class: 'log-step-time', text: `${step.durationMs} ms` }) : null,
+                    ]),
+                    h('div', { class: 'log-step-text', text: step.error || step.outcome || '' }),
+                    lines.length ? h('pre', { class: 'log-step-lines', text: lines.join('\n') }) : null,
+                ]),
+            ]));
+        }
+        return h('ol', { class: 'flow-log' }, items);
+    }
+
+    // The row under a request that shows its log: every step, beside the whole entry.
+    function logRow(entry) {
+        const hasFlow = Boolean(entry.flow && entry.flow.length);
+        return h('tr', { class: 'request-log-row' }, h('td', { colspan: '6' }, h('div', { class: 'request-log' }, [
+            h('div', {}, [
+                h('h3', { class: 'flow-log-title', text: 'Steps' }),
+                hasFlow ? flowLog(entry.flow) : h('p', { class: 'muted', text: 'No steps were recorded for this request.' }),
+            ]),
+            h('div', { class: 'detail' }, [
+                h('h3', { class: 'flow-log-title', text: 'Log entry' }),
+                h('pre', { text: JSON.stringify({ ...entry, flow: undefined }, null, 2) }),
+            ]),
+        ])));
     }
 
     function renderRows() {
         const body = document.getElementById('request-rows');
         if (!body) return;
         const visible = state.rows.filter(matches).slice(0, 300);
-        body.replaceChildren(...visible.map((entry) => requestRow(entry, false)));
+        body.replaceChildren(...visible.flatMap((entry) => requestRows(entry, false)));
         document.getElementById('request-empty').hidden = visible.length > 0;
     }
 
@@ -263,7 +352,6 @@
                 ]),
                 h('p', { class: 'empty', id: 'request-empty', text: 'No requests match yet.' }),
             ])),
-            h('div', { id: 'request-detail' }),
         );
 
         const initial = await api('/api/requests?limit=300');

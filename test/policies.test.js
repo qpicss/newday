@@ -159,7 +159,10 @@ describe('policies', () => {
     assert.match(editor.text, /<script src="\/js\/flow.js"><\/script>/);
 
     const apiPage = await browser('get', `/developer/apis/${apiId}`, admin);
-    assert.match(apiPage.text, new RegExp(`href="/developer/policies/${policyId}">Edit the flow`));
+    assert.match(apiPage.text, new RegExp(`id="policy"[^]*href="/developer/policies/${policyId}"><svg[^]*?</svg>[^<]*Edit flow`));
+    assert.doesNotMatch(apiPage.text, /<form id="gatewayForm"[^]*?name="policyId"[^]*?<\/form>/, 'the policy has its own card');
+    // The card shows the flow's steps from Input to Output.
+    assert.match(apiPage.text, /class="flow-chips policy-steps"[^>]*>\s*<span class="flow-chip">Input<\/span>/);
     assert.doesNotMatch(apiPage.text, /id="base-url-warning"/);
     // The backend URL is set in the Invoke step, not on the API's page.
     assert.doesNotMatch(apiPage.text, /id="baseUrl"/);

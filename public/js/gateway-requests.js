@@ -50,11 +50,104 @@ function chevron() {
 const pageSize = () => Number(pageSizeSelect.value) || 25;
 const pageCount = () => Math.max(1, Math.ceil(entries.length / pageSize()));
 
-// The row under a request that shows its whole log entry.
+const STEP_TYPES = {
+    receive: 'Receive',
+    route: 'Route',
+    access: 'Access',
+    rateLimit: 'Rate limit',
+    respond: 'Respond',
+    input: 'Input',
+    output: 'Output',
+    script: 'Gateway script',
+    if: 'If',
+    invoke: 'Invoke service',
+    validateRequest: 'Validate request',
+    validateBody: 'Validate body',
+    security: 'Security',
+};
+
+// The step icons of the flow editor, plus the gateway's own steps.
+const STEP_ICONS = {
+    receive: '<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3"/>',
+    route: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+    access: '<circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3L21 2M17 6l3 3M15 8l2 2"/>',
+    rateLimit: '<path d="M12 14l4-4"/><path d="M3.3 17a9 9 0 1 1 17.4 0"/>',
+    respond: '<path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>',
+    input: '<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3"/>',
+    output: '<path d="M4 22V4M4 4h12l-2 4 2 4H4"/>',
+    script: '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M10 13l-2 2 2 2M14 13l2 2-2 2"/>',
+    if: '<circle cx="6" cy="5" r="2.5"/><circle cx="6" cy="19" r="2.5"/><circle cx="18" cy="7" r="2.5"/><path d="M6 7.5v9M18 9.5c0 4-4 4.5-9.5 7.5"/>',
+    invoke: '<path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/>',
+    validateRequest: '<path d="M11 6h10M11 12h10M11 18h10"/><path d="M3 6l1.5 1.5L7 5M3 12l1.5 1.5L7 11M3 18l1.5 1.5L7 17"/>',
+    validateBody: '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M9 15l2 2 4-4"/>',
+    security: '<path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z"/><path d="M9 12l2 2 4-4"/>',
+};
+
+function stepIcon(type) {
+    const icon = element('span', { className: `flow-icon type-${type}` });
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'icon');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('stroke', 'currentColor');
+    svg.setAttribute('stroke-width', '2');
+    svg.setAttribute('stroke-linecap', 'round');
+    svg.setAttribute('stroke-linejoin', 'round');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.innerHTML = STEP_ICONS[type] || STEP_ICONS.route;
+    icon.append(svg);
+    return icon;
+}
+
+// Every step of the request, in order: the gateway's own steps around the steps of the port's and the API's policies.
+function flowLog(steps) {
+    const list = element('ol', { className: 'test-steps flow-log' });
+    let group;
+    steps.forEach((step) => {
+        const name = step.flow ? `Policy: ${step.flow}` : 'Gateway';
+        if (name !== group) {
+            group = name;
+            list.append(element('li', { className: 'flow-log-flow', text: name }));
+        }
+        const kind = STEP_TYPES[step.type] || step.type;
+        const title = element('div', { className: 'test-step-title' }, [
+            element('span', { text: step.name }, step.name !== kind ? [element('span', { className: 'test-step-kind', text: kind })] : []),
+            ...(step.durationMs !== undefined ? [element('span', { className: 'test-step-time', text: `${step.durationMs} ms` })] : []),
+        ]);
+        const lines = [
+            ...(step.problems || []),
+            ...(step.logs || []).map((line) => `[${line.level}] ${line.message}`),
+        ];
+        list.append(element('li', { className: `test-step type-${step.type}${step.error ? ' is-failed' : step.stop ? ' is-stopped' : ''}` }, [
+            stepIcon(step.type),
+            element('div', {}, [
+                title,
+                element('div', { className: 'test-step-text', text: step.error || step.outcome || '' }),
+                ...(lines.length ? [element('pre', { text: lines.join('\n') })] : []),
+            ]),
+        ]));
+    });
+    return list;
+}
+
+// The row under a request that shows its log: every step, beside the whole entry.
 function logRow(entry, id) {
+    const hasFlow = Boolean(entry.flow && entry.flow.length);
+    const steps = element('div', {}, [
+        element('h3', { className: 'subsection-title', text: 'Steps' }),
+        hasFlow
+            ? flowLog(entry.flow)
+            : element('p', { text: 'No steps were recorded: this node runs a gateway version that does not record them. Update the node to see every step.' }),
+    ]);
     const cell = element('td', {}, [element('div', { className: 'request-log' }, [
+        element('div', { className: 'request-log-grid' }, [
+            steps,
+            element('div', {}, [
+                element('h3', { className: 'subsection-title', text: 'Log entry' }),
+                element('pre', { text: JSON.stringify({ ...entry, flow: undefined }, null, 2) }),
+            ]),
+        ]),
         element('p', { text: 'Use the trace ID to find the same request in your tracing backend: the gateway forwards it upstream in traceparent.' }),
-        element('pre', { text: JSON.stringify(entry, null, 2) }),
     ])]);
     cell.colSpan = COLUMNS;
     const row = element('tr', { className: 'request-log-row' }, [cell]);

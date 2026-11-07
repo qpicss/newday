@@ -122,9 +122,9 @@ Copy the new `gateway/` folder to the server (or `git pull` the repository), the
 sudo bash gateway/deploy/update.sh          # add --git to git pull the repository first
 ```
 
-- It finds the gateway itself: the `oauth-gateway` service, or every container of an `oauth-server-gateway` image. `--service` or `--docker <name>...` picks one.
+- It finds the gateway itself: the `oauth-gateway` service, or every gateway container, whatever its image is called. `--service` or `--docker <name>...` picks one.
 - Service: it installs a new release with `install.sh`, restarts the service and waits for `/healthz`.
-- Docker: it rebuilds the image under the same tag and recreates each container, one at a time, with the same ports, settings and volumes.
+- Docker: it builds the new image first, under the tag the container runs (or `--image <tag>`), while the old container still serves. Then, one container at a time, it stops the container, starts a new one on the new image with the same ports, settings and volumes, and removes the old container once the new one is healthy. Containers of a Docker Compose project are recreated by `docker compose`, so they stay in their project. The old image is removed once no container runs it.
 - A node that isn't healthy within 60 seconds (`--wait`) goes back to the previous release or image by itself.
 - The configuration, credentials and data stay. A node serves its last configuration at once, and the console's Nodes list shows the new version after its next status check.
 
@@ -158,7 +158,7 @@ Everything is built in. Each part can be turned on or off per gateway in the con
   - `gateway_circuit_open`;
   - the off-load counters, and `gateway_config_info` with the configuration version.
 - **Tracing.** Every request gets a W3C `traceparent`, continued from the caller's when present. It is forwarded upstream as a child span. The trace ID is also in the request log.
-- **Request log.** A ring buffer in memory holds method, path, status, timings, API, application, trace and error for each request. Headers and bodies are never stored. The console's **Live requests** page and the admin UI show it.
+- **Request log.** A ring buffer in memory holds method, path, status, timings, API, application, trace and error for each request, plus `flow`: every step of the request, in order. The gateway's own steps have no `flow` name (`receive`, `route`, `access`, `rateLimit` and a last `respond`), so even a request no API matches has a log; the policies' steps carry the policy's name. Each step has its outcome and duration, and may have validation problems, security findings, script `console` lines (at most 20 per step), an error, or `stop` when it ended the request. Headers and bodies are never stored, and credentials in called URLs are masked. The console's **Live requests** page and the admin UI show it. Off-loaded events carry `flow` too.
 - **Off-load.** Each request record can also be sent to:
   - an HTTP endpoint, as a JSON array per batch;
   - an OpenTelemetry collector, as OTLP/HTTP JSON logs.

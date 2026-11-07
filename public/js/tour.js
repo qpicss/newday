@@ -65,8 +65,9 @@
             steps: [
                 { target: '.page-tabs', title: 'Four views of the API', body: 'Overview for gateway settings, Design for endpoints, Schemas for the document\'s schemas, Source for the raw OpenAPI file.' },
                 { target: '.card:has(#operationForm)', title: 'Endpoints', body: 'Every operation of the OpenAPI document. The gateway only lets through requests that match one of them.' },
+                { target: '#policy', title: 'Policy', body: 'The flow the gateway runs for every call to this API, step by step. Edit flow opens it in the flow editor; a policy shared with other APIs changes them too.' },
                 { target: '#details', title: 'Details', body: 'Name, version and description, shown to developers. The upstream server the gateway calls is the first servers URL of the document, changed on the Source tab.' },
-                { target: '#gateway', title: 'Gateway settings', body: 'The base path clients call on the gateway, the policy (flow) that runs for each request, and the connection used to reach the upstream.' },
+                { target: '#gateway', title: 'Gateway settings', body: 'The base path clients call on the gateway, who may call it, and the connection used to reach the upstream.' },
             ],
         },
         {

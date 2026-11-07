@@ -68,6 +68,60 @@
             </div>
 
             <div class="stack">
+                <section class="card card-policy" id="policy">
+                    <div class="card-header">
+                        <div>
+                            <h2><%- include('partials/icon.html', { name: 'git-branch', className: 'icon-sm' }) %>Policy</h2>
+                            <p>The flow the gateway runs for every call to this API: checks, scripts and the call to the backend.</p>
+                        </div>
+                        <% if (policy) { %>
+                            <a class="btn btn-primary btn-sm" href="/developer/policies/<%= policy.id %>"><%- include('partials/icon.html', { name: 'edit' }) %>Edit flow</a>
+                        <% } %>
+                    </div>
+                    <div class="card-body policy-summary">
+                        <% if (policy) { %>
+                            <div>
+                                <a class="policy-name" href="/developer/policies/<%= policy.id %>"><%= policy.name %></a>
+                                <% if (policy.description) { %><p class="muted"><%= policy.description %></p><% } %>
+                            </div>
+                            <div class="flow-chips policy-steps" aria-label="Steps of <%= policy.name %>">
+                                <span class="flow-chip">Input</span><span class="flow-arrow" aria-hidden="true">→</span>
+                                <% policy.steps.forEach((step) => { %><span class="flow-chip type-<%= step.type %>"><%= step.name %></span><span class="flow-arrow" aria-hidden="true">→</span><% }); %>
+                                <span class="flow-chip">Output</span>
+                            </div>
+                            <% if (!policy.steps.length) { %>
+                                <p class="hint">No steps yet: the gateway answers each call with the request it received. Add an Invoke service step to call the backend.</p>
+                            <% } %>
+                            <% if (policy.sharedWith) { %>
+                                <p class="hint">Shared with <%= policy.sharedWith %> other API<%= policy.sharedWith === 1 ? '' : 's' %>: changing the flow changes <%= policy.sharedWith === 1 ? 'it' : 'them' %> too.</p>
+                            <% } %>
+                            <% if (!baseUrlIsFull && callsBackend) { %>
+                                <div id="base-url-warning" class="alert alert-warning" role="status">
+                                    <%- include('partials/icon.html', { name: 'alert' }) %>
+                                    <span>An Invoke service step of this policy has no Backend URL, and the OpenAPI document has no full server address. <a href="/developer/policies/<%= policyId %>">Set the Backend URL in the step</a>.</span>
+                                </div>
+                            <% } %>
+                        <% } else { %>
+                            <p class="muted">No policy: the gateway answers each call with the request it received and never calls the backend. Choose a policy below.</p>
+                        <% } %>
+                    </div>
+                    <form id="policyForm" class="card-footer-form" data-api-id="<%= api.id %>">
+                        <div class="field-row">
+                            <div class="field">
+                                <label for="policyId">Policy for this API</label>
+                                <select class="select select-sm" id="policyId" name="policyId">
+                                    <option value="">No policy (returns each request as it is)</option>
+                                    <% policies.forEach((item) => { %><option value="<%= item.id %>" <%= api.policyId === item.id ? 'selected' : '' %>><%= item.name %></option><% }); %>
+                                </select>
+                            </div>
+                            <button type="submit" class="btn btn-secondary btn-sm">Change policy</button>
+                        </div>
+                        <div id="policy-alert" class="alert alert-danger" role="alert" hidden>
+                            <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
+                        </div>
+                    </form>
+                </section>
+
                 <section class="card" id="details">
                     <div class="card-header">
                         <div>
@@ -108,7 +162,7 @@
                         <div class="field">
                             <label for="basePath">Base path</label>
                             <input class="input mono" type="text" id="basePath" name="basePath" value="<%= api.basePath || '' %>" maxlength="200" placeholder="/orders" aria-describedby="base-path-hint" required>
-                            <span id="base-path-hint" class="hint">Consumers call <code>&lt;gateway URL&gt;<%= api.basePath || '/orders' %>/&lt;operation path&gt;</code>. What happens next is up to the policy below. A path parameter written <code>{path+}</code> matches the rest of the path, slashes included.</span>
+                            <span id="base-path-hint" class="hint">Consumers call <code>&lt;gateway URL&gt;<%= api.basePath || '/orders' %>/&lt;operation path&gt;</code>. What happens next is up to the <a href="#policy">policy</a>. A path parameter written <code>{path+}</code> matches the rest of the path, slashes included.</span>
                         </div>
                         <div class="field">
                             <label for="access">Access</label>
@@ -117,20 +171,6 @@
                                 <option value="public" <%= api.access === 'public' ? 'selected' : '' %>>Public: anyone, no token</option>
                             </select>
                             <span id="access-hint" class="hint">Public suits a website or open data. The gateway still needs the API in a published product of its catalog, but it doesn't check tokens or subscriptions and doesn't apply the product's rate limit, so protect the backend with the policy's Security step.</span>
-                        </div>
-                        <div class="field">
-                            <label for="policyId">Policy</label>
-                            <select class="select" id="policyId" name="policyId" aria-describedby="policy-hint">
-                                <option value="">No policy (returns each request as it is)</option>
-                                <% policies.forEach((policy) => { %><option value="<%= policy.id %>" <%= api.policyId === policy.id ? 'selected' : '' %>><%= policy.name %></option><% }); %>
-                            </select>
-                            <span id="policy-hint" class="hint"><% if (api.policyId) { %><a href="/developer/policies/<%= api.policyId %>">Edit the flow</a>: <% } %>the steps the gateway runs for each call. The backend URL is set in its Invoke service step. Until it has one, the gateway answers with the request it received.</span>
-                            <% if (!baseUrlIsFull && callsBackend) { %>
-                                <div id="base-url-warning" class="alert alert-warning" role="status">
-                                    <%- include('partials/icon.html', { name: 'alert' }) %>
-                                    <span>An Invoke service step of this policy has no Backend URL, and the OpenAPI document has no full server address. <a href="/developer/policies/<%= policyId %>">Set the Backend URL in the step</a>.</span>
-                                </div>
-                            <% } %>
                         </div>
                         <div class="field">
                             <label for="connectionId">Connection</label>

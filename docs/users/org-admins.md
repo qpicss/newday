@@ -42,10 +42,14 @@ The dashboard also tells you about access requests waiting for you, and gateway 
 
 | Tab | What you do there |
 |---|---|
-| **Overview** | Endpoints (add or remove), details (name, version, description), gateway settings, the products using the API, delete |
+| **Overview** | Endpoints (add or remove), the policy, details (name, version, description), gateway settings, the products using the API, delete |
 | **Design** | Edit one endpoint at a time: summary, operation ID, description, deprecated, parameters, request body, responses |
 | **Schemas** | Edit `components.schemas` as trees: create, rename, change, delete, add to the dictionary |
 | **Source** | Edit the whole document as JSON or YAML, check it, save it |
+
+### Policy (Overview)
+
+The **Policy** card, at the top of the right column, shows the flow every request to the API goes through: its name, its steps from Input to Output, and how many other APIs share it (changing a shared flow changes them too). **Edit flow** opens it in the flow editor, and **Change policy** picks another one. Every new API gets a policy of its own. Without steps, or without a policy, the gateway answers `200` with the request's own body and doesn't call the backend.
 
 ### Gateway settings (Overview)
 
@@ -53,7 +57,6 @@ The dashboard also tells you about access requests waiting for you, and gateway 
 |---|---|
 | Base path | Where clients call the API on the gateway, for example `/orders/v1`. Unique in the organization. |
 | Access | **Applications with an approved subscription** (the default: a token is required), or **Public**: anyone may call it without a token, for example a website. A public API still has to be in a published product of the gateway's catalog, but the gateway doesn't check tokens or subscriptions and doesn't apply the product's rate limit. Its flow sees no consumer, so protect the backend with a Security step. |
-| Policy | The flow every request goes through. Without one, the gateway answers `200` with the request's own body and doesn't call the backend. |
 | Connection | How the backend is called: timeouts, retries, credentials, TLS |
 
 The backend address is the first `servers` URL of the OpenAPI document. Change it on the **Source** tab.
@@ -135,7 +138,14 @@ Approved access takes effect at the next push of the gateway, which happens on i
 
 ### Live requests
 
-Each request served by the nodes, newest first, with method, path, status, timings, API, application, node and trace ID. Filter by status class (2xx to 5xx) and API, or search; **Follow live** keeps the list updating. **Latest** sets how many requests are fetched from the nodes (100 to 1,000), and **Rows per page** how many show at once, with page buttons under the table. Click a request to open its log right under it, and click again to close it; open logs stay open while the list refreshes. Headers and bodies are never recorded.
+Each request served by the nodes, newest first, with method, path, status, timings, API, application, node and trace ID. Filter by status class (2xx to 5xx) and API, or search; **Follow live** keeps the list updating. **Latest** sets how many requests are fetched from the nodes (100 to 1,000), and **Rows per page** how many show at once, with page buttons under the table. Click a request to open its log right under it, and click again to close it; open logs stay open while the list refreshes.
+
+The log shows the request's **steps** the way a policy test does, beside the whole entry as JSON. Every request has them, including one no API matches:
+
+- **Gateway**: Receive (port and client address), Route (the API and operation, or why none matched), Access (public, or whose token was accepted or why it was refused), Rate limit (what is left), and at the end Respond (the status and error sent back).
+- **Policy**: every step the port's policy and the API's policy ran, in order, with how long it took and what it decided (for example "No: the conditions are not met", or the backend call and its status), a Validate step's problems, a Security step's findings, a Gateway script's `console` lines and the error of a step that failed.
+
+The step that ended a request early is highlighted, and one that failed shows in red. Headers, bodies and query strings are never recorded, and credentials in a called URL are masked. Script lines are recorded as the script writes them, so don't log secrets from a script. The node's admin UI shows the same log, also in a row under the request. Nodes running an older gateway version record no steps until they're updated.
 
 ### Policies
 

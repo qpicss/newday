@@ -246,8 +246,11 @@ router.get('/apis/:id', requireOrgAdmin, async (req, res) => {
   const [policies, connections, policy] = await Promise.all([
     Policy.findAll({ where: orgWhere(req), attributes: ['id', 'name'], order: [['name', 'ASC']] }),
     Connection.findAll({ where: orgWhere(req), attributes: ['id', 'name'], order: [['name', 'ASC']] }),
-    api.policyId ? Policy.findOne({ where: orgWhere(req, { id: api.policyId }), attributes: ['id', 'flow'] }) : null,
+    api.policyId ? Policy.findOne({ where: orgWhere(req, { id: api.policyId }), attributes: ['id', 'name', 'description', 'flow'] }) : null,
   ]);
+  // Editing a shared policy changes the other APIs too, so the page says how many share it.
+  const sharedWith = policy ? await Api.count({ where: orgWhere(req, { policyId: policy.id, id: { [Op.ne]: api.id } }) }) : 0;
+  const steps = policy ? (policy.flow?.nodes || []).filter((node) => !['input', 'output'].includes(node.type)) : [];
   res.render('api-detail.html', {
     user: req.user,
     api: serializeApi(api, { withOperations: true }),
@@ -256,6 +259,13 @@ router.get('/apis/:id', requireOrgAdmin, async (req, res) => {
     // Only an Invoke step for "the API's backend" without its own URL uses the OpenAPI server URL.
     callsBackend: Boolean(policy && usesBackend(policy.flow)),
     policyId: api.policyId || null,
+    policy: policy && {
+      id: policy.id,
+      name: policy.name,
+      description: policy.description,
+      steps: steps.map((node) => ({ name: node.name, type: node.type })),
+      sharedWith,
+    },
     connections,
   });
 });
