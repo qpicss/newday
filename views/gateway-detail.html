@@ -280,7 +280,7 @@
                     <% if (gateway.handlers.length) { %>
                         <ul class="operation-list">
                             <% gateway.handlers.forEach((handler) => { %>
-                                <li class="operation">
+                                <li class="operation handler-item">
                                     <span class="method <%= handler.protocol === 'https' ? 'method-get' : '' %>"><%= handler.protocol %></span>
                                     <div class="operation-main">
                                         <span class="cell-primary"><%= handler.name %> <span class="badge mono-sm">:<%= handler.port %></span> <span class="badge"><%= handler.nodeId ? 'Only ' + (nodeNames.get(handler.nodeId) || 'a removed node') : 'Every node' %></span></span>
@@ -290,6 +290,7 @@
                                             <span class="operation-summary">Plain HTTP. Put TLS in front of it, or use HTTPS.</span>
                                         <% } %>
                                     </div>
+                                    <div class="handler-controls">
                                     <% if (gateway.nodes.length) { %>
                                     <div class="inline-select">
                                         <label class="sr-only" for="handler-node-<%= handler.id %>">Where <%= handler.name %> runs</label>
@@ -309,6 +310,7 @@
                                             <option value="">No port policy</option>
                                             <% policies.forEach((policy) => { %><option value="<%= policy.id %>" <%= handler.policy && handler.policy.id === policy.id ? 'selected' : '' %>><%= policy.name %></option><% }); %>
                                         </select>
+                                    </div>
                                     </div>
                                     <button type="button" class="btn btn-danger-ghost btn-sm btn-icon"
                                         data-action="<%= gatewayUrl %>/handlers/<%= handler.id %>" data-method="DELETE"

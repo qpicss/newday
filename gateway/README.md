@@ -76,6 +76,7 @@ gateway/
 ├── ui/                           the admin UI
 └── deploy/
     ├── install.sh                the installer
+    ├── update.sh                 updates a running gateway
     ├── gateway.env.example       becomes /etc/oauth-gateway/gateway.env
     └── oauth-gateway.service     the systemd unit
 <name>-credentials.json           next to the gateway folder, downloaded from the gateway's page
@@ -91,7 +92,7 @@ For example, from the repository root:
 ```bash
 ssh user@server mkdir -p gateway/deploy
 scp -r gateway/package.json gateway/package-lock.json gateway/src gateway/ui user@server:gateway/
-scp gateway/deploy/install.sh gateway/deploy/gateway.env.example gateway/deploy/oauth-gateway.service user@server:gateway/deploy/
+scp gateway/deploy/install.sh gateway/deploy/update.sh gateway/deploy/gateway.env.example gateway/deploy/oauth-gateway.service user@server:gateway/deploy/
 scp <name>-credentials.json user@server:
 ```
 
@@ -111,7 +112,21 @@ journalctl -u oauth-gateway -f
 
 - The script installs Node.js 20 if needed, creates the `oauth-gateway` system user and installs a versioned release under `/opt/oauth-gateway/releases`, with `/opt/oauth-gateway/current` pointing to it.
 - It also installs the hardened systemd unit `deploy/oauth-gateway.service`, which may bind ports below 1024.
-- Re-run the script to upgrade. To roll back, point `current` at the previous release and restart.
+- Re-run the script to upgrade, or use `update.sh` (below). To roll back, point `current` at the previous release and restart.
+
+### Update a running gateway
+
+Copy the new `gateway/` folder to the server (or `git pull` the repository), then run:
+
+```bash
+sudo bash gateway/deploy/update.sh          # add --git to git pull the repository first
+```
+
+- It finds the gateway itself: the `oauth-gateway` service, or every container of an `oauth-server-gateway` image. `--service` or `--docker <name>...` picks one.
+- Service: it installs a new release with `install.sh`, restarts the service and waits for `/healthz`.
+- Docker: it rebuilds the image under the same tag and recreates each container, one at a time, with the same ports, settings and volumes.
+- A node that isn't healthy within 60 seconds (`--wait`) goes back to the previous release or image by itself.
+- The configuration, credentials and data stay. A node serves its last configuration at once, and the console's Nodes list shows the new version after its next status check.
 
 ## Connect it to the console
 

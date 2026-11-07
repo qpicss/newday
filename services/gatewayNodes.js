@@ -109,7 +109,7 @@ const dockerLinkUrlOf = (linkUrl) => {
 const serverFiles = (credentialsFile) => [
   { path: 'gateway/package.json, gateway/package-lock.json', note: 'the gateway project and its locked dependencies' },
   { path: 'gateway/src/, gateway/ui/', note: 'the runtime and the admin UI' },
-  { path: 'gateway/deploy/install.sh, gateway.env.example, oauth-gateway.service', note: 'the installer, default settings and systemd unit' },
+  { path: 'gateway/deploy/install.sh, update.sh, gateway.env.example, oauth-gateway.service', note: 'the installer, the updater, default settings and systemd unit' },
   { path: credentialsFile, note: 'next to the gateway folder. It holds the private key: copy it securely and delete other copies' },
 ];
 

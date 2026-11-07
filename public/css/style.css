@@ -1803,6 +1803,12 @@ a.badge:hover { border-color: var(--border-strong); color: var(--text); text-dec
 .mode-badge { text-transform: uppercase; letter-spacing: .04em; font-size: 11px; }
 .inline-select { display: flex; align-items: center; gap: 8px; }
 .inline-select .select { min-width: 0; max-width: 220px; }
+/* Handler settings sit on their own line so the row fits its column. */
+.handler-item { flex-wrap: wrap; }
+.handler-controls { display: flex; flex-wrap: wrap; flex-basis: 100%; order: 3; gap: 8px; min-width: 0; }
+.handler-controls .inline-select { flex: 1 1 160px; min-width: 0; }
+.handler-controls .inline-select .select,
+.handler-controls .inline-select .input { width: 100%; max-width: none; min-width: 0; }
 .switch-list { display: grid; gap: 8px; }
 .checkbox-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; color: var(--text-muted); font-size: 13px; }
 .checkbox-row input { accent-color: var(--primary); }
