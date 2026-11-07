@@ -178,7 +178,7 @@
             steps: [
                 { target: '[data-setup-mode]', title: 'Console or node first', body: 'Usually the console connects to the node: it checks it every 30 seconds, sends it the configuration and opens its admin UI, and the node needs no route back. Or the node connects to the console, which must then be reachable from the node.' },
                 { target: '#pushConfig', title: 'Push configuration', body: 'Sends the catalog\'s published products, approved applications, policies and handlers to the nodes. The header tells you when there are changes not deployed yet.' },
-                { target: 'a[href$="/requests"]', title: 'Live requests', body: 'Every request the nodes served, with status, timings, application and trace ID. Headers and bodies are never stored.' },
+                { target: 'a[href$="/requests"]', title: 'Live requests', body: 'Every request the nodes served, with status, timings, application and trace ID, and the steps each one went through. Headers and bodies are never stored.' },
                 { target: '#nodes', title: 'Nodes', body: 'The processes that serve traffic. The console checks push nodes every 30 seconds and marks one that doesn\'t answer as Unreachable; pull nodes connect to the console by themselves. The arrow button opens a node\'s admin UI, signed in.' },
                 { target: '#handlers', title: 'Connection handlers', body: 'The ports for API traffic, HTTP or HTTPS, each optionally with a port policy that runs before the API\'s own.' },
                 { target: '#observability', title: 'Observability', body: 'Metrics, tracing, the request log, off-loading records to your collector and usage metering. Each can be turned on or off.' },
@@ -193,7 +193,7 @@
             steps: [
                 { target: '#filters', title: 'Filters', body: 'Narrow down by status class or API, or search. Latest sets how many requests are fetched from the nodes, Rows per page how many show at once.' },
                 { target: '#toggleLive', title: 'Follow live', body: 'Keeps the list updating as requests come in.' },
-                { target: '#requests', title: 'Requests', body: 'Click a request to open its log right under it: timings, the policy steps it went through and its trace ID. Click again to close it.' },
+                { target: '#requests', title: 'Requests', body: 'Click a request to open its log right under it: every step it went through, from Receive and Route to the policy steps and Respond, beside the whole log entry. The step that stopped a request is highlighted. Click again to close it.' },
                 { target: '#pager', title: 'Pages', body: 'Move between pages of the fetched requests.' },
             ],
         },

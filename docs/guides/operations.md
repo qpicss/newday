@@ -89,7 +89,7 @@ The [gateway README](../../gateway/README.md) covers Docker, Docker Compose clus
 ## Monitoring
 
 - **Console:** HTTP access logs on stdout (Apache combined format).
-- **Gateways:** `/healthz`, `/readyz` and Prometheus `/metrics` on port 9080; JSON logs on stdout; the console's **Live requests** page and usage charts. Off-load request records to your log pipeline or an OpenTelemetry collector in each gateway's **Observability** settings.
+- **Gateways:** `/healthz`, `/readyz` and Prometheus `/metrics` on port 9080; JSON logs on stdout; the console's **Live requests** page (every step of each request) and usage charts. Off-load request records to your log pipeline or an OpenTelemetry collector in each gateway's **Observability** settings.
 
 ## Upgrading
 
@@ -97,4 +97,4 @@ The [gateway README](../../gateway/README.md) covers Docker, Docker Compose clus
 2. Update the code and run `npm install`.
 3. Run `npm run migrate-data`, check the plan, then run it with `-- --apply`.
 4. Restart the console.
-5. Upgrade gateways as described in the gateway README. Push once they're running, so they get any new configuration fields.
+5. Upgrade gateways with `sudo bash gateway/deploy/update.sh` on each server (see [Update a running gateway](../../gateway/README.md#update-a-running-gateway)). It updates the service or the Docker containers one at a time and rolls back a node that doesn't come up healthy. Push once they're running, so they get any new configuration fields.

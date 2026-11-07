@@ -48,7 +48,7 @@ Responses never include passwords, client secrets, hashes or tokens. The configu
 
 - Policy scripts run in worker threads, each in its own `vm` context, with no `require`, `process`, timers, network or `eval`, and a time and memory limit.
 - Test runs execute on a gateway node, never inside the console.
-- Request logs hold no headers or bodies. Security findings name the rule and where it matched, never the value.
+- Request logs hold no headers, bodies or query strings. Their steps name a Validate problem or Security finding by rule and place, never the value, and credentials in called URLs are masked. Script `console` lines are kept as written, so scripts shouldn't log secrets.
 
 ## Your responsibilities
 

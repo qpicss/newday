@@ -60,7 +60,7 @@ The **Orders** API has no policy yet, so the gateway answers `200` with the body
 
 ## 6. See it in the console
 
-- **Gateways → Local → Live requests** lists the call with its status, timings, application and trace ID. Headers and bodies are never stored.
+- **Gateways → Local → Live requests** lists the call with its status, timings, application and trace ID. Click it to see its steps: Receive, Route, Access, Rate limit, the policy's steps and Respond. A call that fails shows the step that stopped it, for example Access with "Refused: The access token is invalid or expired". Headers and bodies are never stored.
 - The usage charts on the gateway, product and application pages count it within a minute or two.
 
 ## When something fails

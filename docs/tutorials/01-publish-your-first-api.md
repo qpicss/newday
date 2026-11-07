@@ -115,7 +115,7 @@ The console checks the document, creates the **Orders** API and adds its schemas
 
 Open the **Orders** API. It has four tabs:
 
-- **Overview** lists the endpoints, and holds the gateway settings.
+- **Overview** lists the endpoints, and holds the API's policy and its gateway settings.
 - **Design** edits one endpoint at a time. You use it in [Tutorial 2](02-design-with-the-dictionary.md).
 - **Schemas** edits `components.schemas`. See [Tutorial 3](03-edit-schemas.md).
 - **Source** is the whole document as JSON or YAML.

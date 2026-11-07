@@ -62,7 +62,7 @@ Save the policy.
 ## 4. Attach it to the API
 
 1. Open the **Orders** API, **Overview** tab.
-2. In **Gateway**, set **Policy** to **Orders checks** and save.
+2. In the **Policy** card, choose **Orders checks** and click **Change policy**. The card now shows its steps from Input to Output.
 3. Push the gateway, unless auto-push is on.
 
 ## 5. Try it
@@ -82,7 +82,7 @@ curl -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json
 curl -H "Authorization: Bearer $ACCESS_TOKEN" "http://localhost:8080/shop/orders?status=open'%20OR%201=1--"
 ```
 
-**Live requests** shows each call, and which step answered it.
+**Live requests** shows each call. Click one to see every step it went through, as in a test: the invalid body stops at Validate body with its problems, and the injection attempt at Security with the rule that matched.
 
 ## Port policies
 
