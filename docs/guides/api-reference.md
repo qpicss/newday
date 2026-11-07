@@ -173,4 +173,4 @@ Content-Type: application/x-www-form-urlencoded
 grant_type=client_credentials
 ```
 
-Returns `{ "access_token": "...", "token_type": "Bearer", "expires_in": 600 }`. Only the client credentials grant is supported. The token is an RS256 JWT that gateways verify with the console's public key.
+Returns `{ "access_token": "...", "token_type": "Bearer", "expires_in": 600 }`. Only the client credentials grant is supported. The token is an RS256 JWT that gateways verify with the console's public key. See [Getting an access token](access-tokens.md) for what to take into account and the errors you may get.

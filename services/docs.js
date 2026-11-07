@@ -45,6 +45,7 @@ const SECTIONS = [
   {
     title: 'API',
     pages: [
+      { slug: 'guides/access-tokens', file: 'docs/guides/access-tokens.md', title: 'Getting an access token' },
       { slug: 'guides/api-reference', file: 'docs/guides/api-reference.md', title: 'REST API reference' },
       { slug: 'guides/api-examples', file: 'docs/guides/api-examples.md', title: 'API examples' },
       { slug: 'guides/managing-people', file: 'docs/guides/managing-people.md', title: 'Managing people' },

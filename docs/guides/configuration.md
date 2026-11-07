@@ -78,4 +78,4 @@ Counted in memory, per console process.
 |---|---|---|
 | `LOGIN_RATE_LIMIT_MAX` | `10` | Failed sign-ins per 15 minutes |
 | `REGISTER_RATE_LIMIT_MAX` | `20` | Registrations per hour |
-| `TOKEN_RATE_LIMIT_MAX` | `30` | Requests to `/oauth/token` per 15 minutes |
+| `TOKEN_RATE_LIMIT_MAX` | `30` | Failed requests to `/oauth/token` per client address per 15 minutes (successful ones don't count) |

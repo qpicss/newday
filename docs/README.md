@@ -39,6 +39,7 @@ The first seven build on each other: work through them in order the first time.
 
 **API**
 
+- [Getting an access token](guides/access-tokens.md): where tokens come from, how to ask for one, and what to check when a call is refused.
 - [REST API reference](guides/api-reference.md): every endpoint of the console.
 - [API examples](guides/api-examples.md): end-to-end scripts, from publishing an API to calling it.
 - [Managing people](guides/managing-people.md): site admins, org admins and members through the API.

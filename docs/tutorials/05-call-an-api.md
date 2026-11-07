@@ -46,7 +46,7 @@ curl -u "$CLIENT_ID:$CLIENT_SECRET" \
 { "access_token": "eyJhbGciOiJSUzI1NiIs...", "token_type": "Bearer", "expires_in": 600 }
 ```
 
-The token is valid for 10 minutes. Ask for a new one when it expires. The credentials can also be sent as `client_id` and `client_secret` form fields instead of HTTP Basic.
+The token is valid for 10 minutes. Ask for a new one when it expires. Ask the console for tokens, not the gateway: see [Getting an access token](../guides/access-tokens.md). The credentials can also be sent as `client_id` and `client_secret` form fields instead of HTTP Basic.
 
 ## 5. Call the API
 

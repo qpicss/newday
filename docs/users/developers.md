@@ -77,7 +77,8 @@ curl -H "Authorization: Bearer $ACCESS_TOKEN" https://api.example.com/orders/v1/
 ```
 
 - Cache the token and ask for a new one shortly before it expires, rather than for every call.
-- The console limits token requests per client address (30 per 15 minutes by default).
+- The console limits failed token requests per client address (30 per 15 minutes by default).
+- Ask the console for tokens, not the gateway. See [Getting an access token](../guides/access-tokens.md) for what to take into account.
 - Tokens from any of the application's credential sets work the same way.
 
 What the gateway answers when something is wrong:
