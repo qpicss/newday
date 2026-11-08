@@ -1,3 +1,4 @@
 *.sh text eol=lf
 *.service text eol=lf
 gateway/deploy/*.conf text eol=lf
+deploy/**/*.conf text eol=lf

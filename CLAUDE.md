@@ -15,7 +15,9 @@ npm run migrate-data           # dry run of schema + data migrations against the
 npm run migrate-data -- --apply
 ```
 
-No linter or build step. Check edited JS with `node --check <file>`.
+No linter or build step. Check edited JS with `node --check <file>`; check shell scripts with `bash -n`.
+
+Cloud deployment lives in `deploy/`: `console/install.sh` (console as a systemd service behind nginx), `cloud/console-env.sh` and `cloud/gateway-node.sh` (settings from SSM / Key Vault, gateway container on a VM), and `aws/` / `azure/` provisioning scripts. They are documented in `docs/guides/cloud-deployment.md`, `deploy-aws.md` and `deploy-azure.md`; keep those in step when the console's settings, ports or install layout change.
 
 `server.js` exits if `JWT_SECRET` is unset, if the database is unreachable, or if the port is already in use. Schema changes are **not** applied on startup: `sequelize.sync()` only creates missing tables, and `alter` runs only with `DB_SYNC_ALTER=true`. New columns on existing tables go into `scripts/migrate-data.js`. That script must stay safe to re-run, and it dry-runs unless given `--apply`. Back up MySQL first (`mysqldump`, WAMP binary under `C:\wamp64\bin\mysql\*\bin`; dumps go in the git-ignored `backups/`).
 

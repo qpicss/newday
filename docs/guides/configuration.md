@@ -16,6 +16,7 @@ The gateway has its own settings, listed in the [gateway README](../../gateway/R
 |---|---|---|
 | `PORT` | `3000` | HTTP port of the console |
 | `APP_URL` | none | The console's public address, for example `https://console.example.com`. Used in invitation links, as the token issuer and in the gateway link certificate. Set it in production. |
+| `TRUST_PROXY` | none | Set it when the console runs behind a reverse proxy or load balancer, so the sign-in and token rate limits and the logs see the caller's address instead of the proxy's: `loopback` for nginx on the same machine, or the number of proxies in front (`2` for a cloud load balancer in front of nginx). Without it every caller shares the proxy's limit. Never set it when the console is reached directly, since callers could then pick their own address. |
 | `NODE_ENV` | none | `production` adds `Secure` to the session cookie. Serve the console over HTTPS when you set it. |
 
 ## Database
@@ -28,6 +29,8 @@ The gateway has its own settings, listed in the [gateway README](../../gateway/R
 | `DB_NAME` | `newday` | Database name |
 | `DB_USER` | `root` | Database user |
 | `DB_PASSWORD` | empty | Database password |
+| `DB_SSL` | off | `true` connects over TLS and verifies the server's certificate. Azure Database for MySQL requires it; use it with Amazon RDS too. |
+| `DB_SSL_CA` | none | PEM file with the CA certificates to verify the server with, for example RDS's `global-bundle.pem`. Without it Node's built-in CA list is used (enough for Azure). |
 | `DB_STORAGE` | `:memory:` | SQLite file, when `DB_DIALECT=sqlite` |
 | `DB_SYNC_ALTER` | off | `true` lets Sequelize alter existing tables on startup. Leave it off and use `npm run migrate-data` instead. |
 

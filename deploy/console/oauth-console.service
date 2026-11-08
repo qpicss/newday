@@ -1,0 +1,40 @@
+[Unit]
+Description=OAuth Server console (management)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=oauth-console
+Group=oauth-console
+WorkingDirectory=/opt/oauth-console/current
+Environment=NODE_ENV=production
+Environment=DOTENV_CONFIG_QUIET=true
+EnvironmentFile=/etc/oauth-console/console.env
+ExecStart=/usr/bin/node /opt/oauth-console/current/server.js
+Restart=on-failure
+RestartSec=3
+KillSignal=SIGTERM
+TimeoutStopSec=20
+LimitNOFILE=65536
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+ReadOnlyPaths=/etc/oauth-console
+
+[Install]
+WantedBy=multi-user.target

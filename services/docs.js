@@ -56,6 +56,9 @@ const SECTIONS = [
     pages: [
       { slug: 'guides/configuration', file: 'docs/guides/configuration.md', title: 'Configuration' },
       { slug: 'guides/operations', file: 'docs/guides/operations.md', title: 'Operations' },
+      { slug: 'guides/cloud-deployment', file: 'docs/guides/cloud-deployment.md', title: 'Deploying to the cloud' },
+      { slug: 'guides/deploy-aws', file: 'docs/guides/deploy-aws.md', title: 'Deploy on AWS' },
+      { slug: 'guides/deploy-azure', file: 'docs/guides/deploy-azure.md', title: 'Deploy on Azure' },
       { slug: 'guides/security', file: 'docs/guides/security.md', title: 'Security' },
       { slug: 'gateway', file: 'gateway/README.md', title: 'Gateway reference' },
       { slug: 'guides/development', file: 'docs/guides/development.md', title: 'Development' },

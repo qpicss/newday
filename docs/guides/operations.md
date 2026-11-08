@@ -4,15 +4,15 @@ How to run the console in production, change its database schema safely, back it
 
 ## Production checklist
 
-- Run on Node.js 20 or later, against MySQL 8 (or MariaDB).
+- Run on Node.js 20 or later, against MySQL 8 (or MariaDB). Set `DB_SSL=true` for a managed MySQL such as RDS or Azure Database for MySQL.
 - Set `JWT_SECRET` and `PKI_MASTER_KEY` to random values, store them in your secret manager, and back them up. Losing `PKI_MASTER_KEY` makes the stored private keys unreadable, so every gateway would need new credentials.
 - Set `APP_URL` to the public HTTPS address, and `NODE_ENV=production` so the session cookie is `Secure`.
-- Put the console behind a reverse proxy that terminates HTTPS. Keep the gateway link port (3443) reachable by pull-mode gateways. It does its own mutual TLS, so pass it through as TCP rather than terminating it.
+- Put the console behind a reverse proxy that terminates HTTPS, and set `TRUST_PROXY` (`loopback` for nginx on the same machine) so rate limits see the caller's address. Keep the gateway link port (3443) reachable by pull-mode gateways. It does its own mutual TLS, so pass it through as TCP rather than terminating it.
 - If gateways reach the console under a different name than `APP_URL`, set `GATEWAY_LINK_PUBLIC_URL`.
 - Configure SMTP so invitations are emailed.
 - Run one console process. The sign-in rate limits and auto-push timers live in memory.
 
-See [Configuration](configuration.md) for every setting.
+See [Configuration](configuration.md) for every setting. To run the console and the gateways on AWS or Azure, follow [Deploying to the cloud](cloud-deployment.md).
 
 ## Starting and stopping
 
@@ -79,7 +79,7 @@ To trust gateway admin UIs and HTTPS handlers whose certificates the console iss
 
 ## Deploying gateways
 
-The [gateway README](../../gateway/README.md) covers Docker, Docker Compose clusters with Redis, Ubuntu with systemd, upgrades and rollbacks, and every node setting. In short:
+The [gateway README](../../gateway/README.md) covers Docker, Docker Compose clusters with Redis, Ubuntu with systemd, upgrades and rollbacks, and every node setting. For gateway VMs on AWS or Azure built by scripts, see [Deploying to the cloud](cloud-deployment.md). In short:
 
 - Build or pull the `oauth-server-gateway` image, or run `gateway/deploy/install.sh` on Ubuntu. To install on another server, first copy the [files the installer needs](../../gateway/README.md#files-to-copy-to-the-server) and the credentials file. The gateway's page lists them too, under **Linux service**.
 - Start each node with the gateway's credentials file. By default the console connects to the nodes (push mode, port 9443 open from the console to each node). It checks them every 30 seconds (`GATEWAY_MONITOR_MS`), marks a node that doesn't answer as **Unreachable**, and sends the deployed configuration again to a node that comes back with an older one. Use pull mode (`GATEWAY_MANAGEMENT_URL`) only when the console can't reach the nodes but the nodes can reach the console's link address.

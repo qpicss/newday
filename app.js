@@ -21,6 +21,14 @@ const { jwks } = require('./controllers/oauthController');
 
 const app = express();
 
+// Behind a reverse proxy or load balancer, TRUST_PROXY makes req.ip the caller's address (used by
+// the sign-in and token rate limits, and in the logs): the number of proxies in front of the
+// console, or their addresses (e.g. "loopback" for nginx on the same machine).
+if (process.env.TRUST_PROXY) {
+  const hops = Number(process.env.TRUST_PROXY);
+  app.set('trust proxy', Number.isInteger(hops) ? hops : process.env.TRUST_PROXY);
+}
+
 // Middleware
 // Helmet's default Content-Security-Policy blocks inline scripts, so all page
 // scripts live in public/js and are loaded with <script src>.

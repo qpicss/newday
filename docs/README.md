@@ -48,6 +48,7 @@ The first seven build on each other: work through them in order the first time.
 
 - [Configuration](guides/configuration.md): every environment variable of the console.
 - [Operations](guides/operations.md): production setup, migrations, backups, certificates and upgrades.
+- [Deploying to the cloud](guides/cloud-deployment.md): the plan of action for running the console and the gateways separately, with step-by-step guides and scripts for [AWS](guides/deploy-aws.md) and [Azure](guides/deploy-azure.md).
 - [Security](guides/security.md): authentication, tenancy, secrets and the browser.
 - [Gateway reference](../gateway/README.md): node settings, Docker and systemd, policies, checking steps and error responses.
 - [Development](guides/development.md): architecture, tests and conventions.
