@@ -1,7 +1,7 @@
 // Edits of one operation of an OpenAPI document made by the API designer: its summary, parameters,
 // request body and responses, plus the components.schemas entries written from the data dictionary.
 // Every function takes the document and returns { spec } (a changed copy) or { error, status }.
-const { HTTP_METHODS } = require('./openapi');
+const { HTTP_METHODS, PUBLIC_MARK } = require('./openapi');
 const {
   isPlainObject,
   describeSchema,
@@ -129,6 +129,7 @@ const describeOperation = (spec, { method, path }) => {
     description: typeof operation.description === 'string' ? operation.description : '',
     operationId: typeof operation.operationId === 'string' ? operation.operationId : '',
     deprecated: operation.deprecated === true,
+    public: operation[PUBLIC_MARK] === 'public',
     parameters,
     missingPathParams,
     allowsBody: !NO_BODY_METHODS.includes(method),
@@ -176,6 +177,11 @@ const validateOperationInfo = (body = {}, spec, { method, path }) => {
     info.operationId = value;
   }
   if (body.deprecated !== undefined) info.deprecated = body.deprecated === true;
+  // public: the gateway serves this operation without a token, even when the API needs one.
+  if (body.public !== undefined) {
+    if (typeof body.public !== 'boolean') return fail('public must be true or false');
+    info[PUBLIC_MARK] = body.public ? 'public' : '';
+  }
   return { info };
 };
 

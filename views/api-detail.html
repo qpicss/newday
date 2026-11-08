@@ -21,33 +21,70 @@
                     <div class="card-header">
                         <div>
                             <h2>Endpoints</h2>
-                            <p><%= api.operationCount %> endpoint<%= api.operationCount === 1 ? '' : 's' %><%= api.baseUrl ? ' on ' + api.baseUrl : '' %></p>
+                            <p><%= api.operationCount %> endpoint<%= api.operationCount === 1 ? '' : 's' %><%= api.baseUrl ? ' on ' + api.baseUrl : '' %>, by path.
+                                <% if (api.access === 'public') { %>The API is public: every endpoint is served without a token.<% } else { %>Every endpoint needs a token unless it is marked <strong>No token</strong>.<% } %></p>
                         </div>
                     </div>
                     <% if (api.operations.length) { %>
-                        <ul class="operation-list">
-                            <% api.operations.forEach((operation) => { %>
-                                <li class="operation">
-                                    <span class="method method-<%= operation.method %>"><%= operation.method %></span>
-                                    <div class="operation-main">
-                                        <code class="operation-path"><%= operation.path %></code>
-                                        <% if (operation.summary) { %><span class="operation-summary"><%= operation.summary %></span><% } %>
+                        <ul class="path-tree" aria-label="Endpoints by path">
+                            <% pathTree.forEach((row) => { %>
+                                <li class="path-node tree-depth-<%= Math.min(row.depth, 6) %>">
+                                    <div class="path-node-head">
+                                        <%- include('partials/icon.html', { name: 'folder', className: 'icon-sm' }) %>
+                                        <code class="path-node-label" title="<%= row.path %>"><%= row.label %></code>
+                                        <% if (row.operations.length) { %><span class="path-node-count"><%= row.operations.length %> operation<%= row.operations.length === 1 ? '' : 's' %></span><% } %>
                                     </div>
-                                    <% if (operation.deprecated) { %><span class="badge badge-warning">Deprecated</span><% } %>
-                                    <a class="btn btn-ghost btn-sm btn-icon" href="/developer/apis/<%= api.id %>/design?method=<%= operation.method %>&amp;path=<%= encodeURIComponent(operation.path) %>"
-                                        aria-label="Design <%= operation.method.toUpperCase() %> <%= operation.path %>" title="Design parameters and bodies">
-                                        <%- include('partials/icon.html', { name: 'edit' }) %>
-                                    </a>
-                                    <button type="button" class="btn btn-ghost btn-sm btn-icon"
-                                        data-action="<%= '/api/org/apis/' + api.id + '/operations?method=' + operation.method + '&path=' + encodeURIComponent(operation.path) %>"
-                                        data-method="DELETE"
-                                        data-confirm-title="Remove endpoint?"
-                                        data-confirm-message="<%= operation.method.toUpperCase() %> <%= operation.path %> will be removed from the OpenAPI document."
-                                        data-confirm-label="Remove" data-danger
-                                        data-success="Endpoint removed"
-                                        aria-label="Remove <%= operation.method.toUpperCase() %> <%= operation.path %>" title="Remove">
-                                        <%- include('partials/icon.html', { name: 'trash' }) %>
-                                    </button>
+                                    <% if (row.operations.length) { %>
+                                        <ul class="operation-list path-operations">
+                                            <% row.operations.forEach((operation) => {
+                                                const label = operation.method.toUpperCase() + ' ' + operation.path;
+                                                const operationUrl = '/api/org/apis/' + api.id + '/operations?method=' + operation.method + '&path=' + encodeURIComponent(operation.path); %>
+                                                <li class="operation<%= operation.public && api.access !== 'public' ? ' is-public' : '' %>">
+                                                    <span class="method method-<%= operation.method %>"><%= operation.method %></span>
+                                                    <div class="operation-main">
+                                                        <code class="operation-path"><%= operation.path %></code>
+                                                        <% if (operation.summary) { %><span class="operation-summary"><%= operation.summary %></span><% } %>
+                                                    </div>
+                                                    <% if (operation.deprecated) { %><span class="badge badge-warning">Deprecated</span><% } %>
+                                                    <% if (api.access !== 'public') { %>
+                                                        <% if (operation.public) { %>
+                                                            <span class="badge badge-warning" title="The gateway serves this endpoint to anyone, without a token, subscription or rate limit"><%- include('partials/icon.html', { name: 'unlock', className: 'icon-sm' }) %>No token</span>
+                                                            <button type="button" class="btn btn-ghost btn-sm btn-icon"
+                                                                data-action="<%= operationUrl %>" data-method="PUT" data-body='{"public":false}'
+                                                                data-success="<%= label %> needs a token again. Push your gateways to deploy it."
+                                                                aria-label="Require a token for <%= label %>" title="Require a token">
+                                                                <%- include('partials/icon.html', { name: 'lock' }) %>
+                                                            </button>
+                                                        <% } else { %>
+                                                            <button type="button" class="btn btn-ghost btn-sm btn-icon"
+                                                                data-action="<%= operationUrl %>" data-method="PUT" data-body='{"public":true}'
+                                                                data-confirm-title="Serve <%= label %> without a token?"
+                                                                data-confirm-message="Anyone will be able to call it through the gateway: no token, no subscription and no product rate limit. The rest of the API still needs a token. Protect it with a Security step in the policy."
+                                                                data-confirm-label="Serve without a token" data-danger
+                                                                data-success="<%= label %> is served without a token. Push your gateways to deploy it."
+                                                                aria-label="Serve <%= label %> without a token" title="Serve without a token">
+                                                                <%- include('partials/icon.html', { name: 'unlock' }) %>
+                                                            </button>
+                                                        <% } %>
+                                                    <% } %>
+                                                    <a class="btn btn-ghost btn-sm btn-icon" href="/developer/apis/<%= api.id %>/design?method=<%= operation.method %>&amp;path=<%= encodeURIComponent(operation.path) %>"
+                                                        aria-label="Design <%= label %>" title="Design parameters and bodies">
+                                                        <%- include('partials/icon.html', { name: 'edit' }) %>
+                                                    </a>
+                                                    <button type="button" class="btn btn-ghost btn-sm btn-icon"
+                                                        data-action="<%= operationUrl %>"
+                                                        data-method="DELETE"
+                                                        data-confirm-title="Remove endpoint?"
+                                                        data-confirm-message="<%= label %> will be removed from the OpenAPI document."
+                                                        data-confirm-label="Remove" data-danger
+                                                        data-success="Endpoint removed"
+                                                        aria-label="Remove <%= label %>" title="Remove">
+                                                        <%- include('partials/icon.html', { name: 'trash' }) %>
+                                                    </button>
+                                                </li>
+                                            <% }); %>
+                                        </ul>
+                                    <% } %>
                                 </li>
                             <% }); %>
                         </ul>

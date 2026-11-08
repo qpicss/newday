@@ -5,6 +5,8 @@ const HTTP_METHODS = ['get', 'post', 'put', 'patch', 'delete', 'head', 'options'
 const MAX_SPEC_BYTES = 2 * 1024 * 1024;
 const OPENAPI_VERSION = /^3\.\d+(\.\d+)?(-[\w.]+)?$/;
 const PATH_PATTERN = /^\/[^\s?#]*$/;
+// Marks an operation the gateway serves without a token: `x-gateway-access: public`.
+const PUBLIC_MARK = 'x-gateway-access';
 
 const isPlainObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 
@@ -190,12 +192,49 @@ const listOperations = (spec) => {
         summary: typeof operation.summary === 'string' ? operation.summary : '',
         operationId: typeof operation.operationId === 'string' ? operation.operationId : '',
         deprecated: operation.deprecated === true,
+        // Called through the gateway without a token, even when the API needs one.
+        public: operation[PUBLIC_MARK] === 'public',
       });
     }
   }
   return operations.sort((a, b) => (
     a.path.localeCompare(b.path) || HTTP_METHODS.indexOf(a.method) - HTTP_METHODS.indexOf(b.method)
   ));
+};
+
+// The operations (sorted by listOperations) as a tree of path segments, flattened into rows for a
+// list: each row has its depth, the segments it adds, the full path and the operations on that path.
+// A segment without operations and with a single child joins it, so /v1/orders is one row.
+const operationTree = (operations) => {
+  const node = () => ({ children: new Map(), operations: [] });
+  const root = node();
+  for (const operation of operations) {
+    let current = root;
+    for (const segment of operation.path.split('/').filter(Boolean)) {
+      if (!current.children.has(segment)) current.children.set(segment, node());
+      current = current.children.get(segment);
+    }
+    current.operations.push(operation);
+  }
+  const rows = [];
+  if (root.operations.length) rows.push({ depth: 0, label: '/', path: '/', operations: root.operations });
+  const walk = (parent, prefix, depth) => {
+    for (const [segment, child] of parent.children) {
+      let current = child;
+      let path = `${prefix}/${segment}`;
+      let label = `/${segment}`;
+      while (!current.operations.length && current.children.size === 1) {
+        const [[next, only]] = current.children;
+        path += `/${next}`;
+        label += `/${next}`;
+        current = only;
+      }
+      rows.push({ depth, label, path, operations: current.operations });
+      walk(current, path, depth + 1);
+    }
+  };
+  walk(root, '', root.operations.length ? 1 : 0);
+  return rows;
 };
 
 const validateOperation = ({ method, path, summary } = {}) => {
@@ -269,11 +308,13 @@ const buildSpec = ({ name, version, description, baseUrl }) => withInfo(
 
 module.exports = {
   HTTP_METHODS,
+  PUBLIC_MARK,
   parseSpecText,
   validateSpec,
   validateBaseUrl,
   summarizeSpec,
   listOperations,
+  operationTree,
   validateOperation,
   withOperation,
   withoutOperation,

@@ -136,6 +136,26 @@ describe('public APIs and the home redirect', () => {
     assert.equal((await call('/acme/orders/orders', { token: tokenFor(pki) })).status, 200);
   });
 
+  it('serves one public operation of an API without a token, and only that one', async () => {
+    const config = configWith({ version: 'v-op' });
+    config.apis[0].operations.find((operation) => operation.method === 'get' && operation.path === '/orders/{id}').access = 'public';
+    assert.equal((await push(config)).status, 200);
+    try {
+      const open = await call('/acme/orders/orders/7');
+      assert.equal(open.status, 200);
+      assert.equal(upstream.requests.at(-1).headers['x-gateway-client-id'], undefined);
+      assert.equal((await call('/acme/orders/orders')).status, 401, 'the other operations still need a token');
+      assert.equal((await call('/acme/orders/orders', { method: 'POST' })).status, 401);
+
+      const unknown = configWith({ version: 'v-op2' });
+      unknown.apis[0].operations[0].access = 'anyone';
+      assert.equal((await push(unknown)).status, 400);
+    } finally {
+      assert.equal((await push(configWith({ version: 'v-op3' }))).status, 200);
+    }
+    assert.equal((await call('/acme/orders/orders/7')).status, 401);
+  });
+
   it('only serves the methods the public API declares', async () => {
     const res = await call('/site/x', { method: 'DELETE' });
     assert.equal(res.status, 405);

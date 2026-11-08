@@ -1265,6 +1265,30 @@ a.badge:hover { border-color: var(--border-strong); color: var(--text); text-dec
 .operation-path { font-size: 13px; overflow-wrap: anywhere; }
 .operation-summary { color: var(--text-muted); font-size: 13px; }
 
+/* An API's endpoints as a tree of paths: each path, indented under its parent, with its operations. */
+.path-tree { margin: 0; padding: 6px 0 10px; list-style: none; }
+.path-node { padding-right: 24px; padding-left: 24px; }
+.path-node.tree-depth-1 { padding-left: 44px; }
+.path-node.tree-depth-2 { padding-left: 64px; }
+.path-node.tree-depth-3 { padding-left: 84px; }
+.path-node.tree-depth-4 { padding-left: 104px; }
+.path-node.tree-depth-5 { padding-left: 124px; }
+.path-node.tree-depth-6 { padding-left: 144px; }
+.path-node-head { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 10px 0 4px; color: var(--text-subtle); }
+.path-node-label { color: var(--text); font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+.path-node-count { margin-left: auto; color: var(--text-subtle); font-size: 12px; white-space: nowrap; }
+.path-operations { margin: 0 0 4px 7px; padding: 0; border-left: 2px solid var(--border); list-style: none; }
+.path-operations .operation { gap: 10px; padding: 8px 0 8px 14px; }
+.path-operations .operation.is-public { border-left: 2px solid var(--warning); margin-left: -2px; background: var(--warning-soft); }
+@media (max-width: 760px) {
+    .path-node { padding-right: 16px; padding-left: 16px; }
+    .path-node.tree-depth-1 { padding-left: 26px; }
+    .path-node.tree-depth-2 { padding-left: 36px; }
+    .path-node.tree-depth-3 { padding-left: 46px; }
+    .path-node.tree-depth-4, .path-node.tree-depth-5, .path-node.tree-depth-6 { padding-left: 56px; }
+    .path-operations .operation { flex-wrap: wrap; }
+}
+
 .endpoint-list { display: flex; flex-direction: column; gap: 8px; }
 
 .endpoint-row {

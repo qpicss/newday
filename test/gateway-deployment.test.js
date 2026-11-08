@@ -19,7 +19,7 @@ const {
 const { createGateway } = require('../gateway/src/gateway');
 const { createLogger } = require('../gateway/src/logger');
 
-const { GatewayNode, Subscription } = models;
+const { Api, GatewayNode, Subscription } = models;
 
 const freePort = () => new Promise((resolve) => {
   const server = net.createServer();
@@ -299,6 +299,31 @@ describe('gateway deployment', () => {
     await push();
     assert.equal((await callGateway('/orders-api/orders/1')).status, 401);
     assert.equal((await fetch(`http://127.0.0.1:${handlerPort}/`, { redirect: 'manual' })).status, 404);
+  });
+
+  it('serves one operation without a token when it is marked public', async () => {
+    const operationUrl = `/api/org/apis/${apiId}/operations?method=get&path=${encodeURIComponent('/orders/{id}')}`;
+    assert.equal((await api('put', operationUrl, publisher).send({ public: 'yes' })).status, 400);
+    const marked = await api('put', operationUrl, publisher).send({ public: true });
+    assert.equal(marked.status, 200, JSON.stringify(marked.body));
+    assert.deepEqual(marked.body.api.operations.filter((operation) => operation.public).map((operation) => `${operation.method} ${operation.path}`), ['get /orders/{id}']);
+    const stored = await Api.findByPk(apiId);
+    assert.equal(stored.spec.paths['/orders/{id}'].get['x-gateway-access'], 'public');
+
+    // The overview shows it on the operation, in the path tree.
+    const page = await browser('get', `/developer/apis/${apiId}`, publisher);
+    assert.match(page.text, /class="path-tree"/);
+    assert.match(page.text, /<code class="path-node-label" title="\/orders\/\{id\}">\/\{id\}<\/code>/);
+    assert.match(page.text, /class="operation is-public"[^]*?No token/);
+    await push();
+
+    assert.equal((await callGateway('/orders-api/orders/1')).status, 200);
+    assert.equal((await callGateway('/orders-api/orders')).status, 401, 'the other operations still need a token');
+
+    assert.equal((await api('put', operationUrl, publisher).send({ public: false })).status, 200);
+    assert.equal((await Api.findByPk(apiId)).spec.paths['/orders/{id}'].get['x-gateway-access'], undefined);
+    await push();
+    assert.equal((await callGateway('/orders-api/orders/1')).status, 401);
   });
 
   it('attaches only running gateways to a catalog', async () => {

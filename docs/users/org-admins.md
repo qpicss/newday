@@ -42,10 +42,16 @@ The dashboard also tells you about access requests waiting for you, and gateway 
 
 | Tab | What you do there |
 |---|---|
-| **Overview** | Endpoints (add or remove), the policy, details (name, version, description), gateway settings, the products using the API, delete |
+| **Overview** | Endpoints as a tree of paths (add, remove, serve one without a token), the policy, details (name, version, description), gateway settings, the products using the API, delete |
 | **Design** | Edit one endpoint at a time: summary, operation ID, description, deprecated, parameters, request body, responses |
 | **Schemas** | Edit `components.schemas` as trees: create, rename, change, delete, add to the dictionary |
 | **Source** | Edit the whole document as JSON or YAML, check it, save it |
+
+### Endpoints (Overview)
+
+The **Endpoints** card shows the API's paths as a tree: each path under its parent (`/orders/{id}` under `/orders`), with its operations. Each operation has buttons to design it, remove it, and serve it without a token.
+
+**Serve without a token** (the open lock) makes one operation public while the rest of the API still needs a token, for example a status or a catalog endpoint. The gateway then serves that operation to anyone: no token, no subscription and no product rate limit, and its flow sees no consumer. The operation shows **No token** and is highlighted. The closed lock requires a token again. The setting is stored in the OpenAPI document as `x-gateway-access: public` on the operation, and the **Design** tab has the same option under the endpoint's details. Push the gateway (auto-push does it for you) to deploy it, and protect a public operation with a Security step in the policy.
 
 ### Policy (Overview)
 
@@ -56,7 +62,7 @@ The **Policy** card, at the top of the right column, shows the flow every reques
 | Setting | |
 |---|---|
 | Base path | Where clients call the API on the gateway, for example `/orders/v1`. Unique in the organization. |
-| Access | **Applications with an approved subscription** (the default: a token is required), or **Public**: anyone may call it without a token, for example a website. A public API still has to be in a published product of the gateway's catalog, but the gateway doesn't check tokens or subscriptions and doesn't apply the product's rate limit. Its flow sees no consumer, so protect the backend with a Security step. |
+| Access | **Applications with an approved subscription** (the default: a token is required), or **Public**: anyone may call any of its operations without a token, for example a website. To open only some operations, keep the subscription access and mark those operations in **Endpoints**. A public API still has to be in a published product of the gateway's catalog, but the gateway doesn't check tokens or subscriptions and doesn't apply the product's rate limit. Its flow sees no consumer, so protect the backend with a Security step. |
 | Connection | How the backend is called: timeouts, retries, credentials, TLS |
 
 The backend address is the first `servers` URL of the OpenAPI document. Change it on the **Source** tab.

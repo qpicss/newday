@@ -33,6 +33,8 @@ const compileRoutes = (apis) => apis
     operations: api.operations.map((operation) => ({
       method: operation.method.toUpperCase(),
       path: operation.path,
+      // A public operation of an API that otherwise needs a token.
+      ...(operation.access && { access: operation.access }),
       // Parameters and request body from the OpenAPI document, for the Validate steps.
       contract: operation.contract || null,
       ...compileTemplate(operation.path),

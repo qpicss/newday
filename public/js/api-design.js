@@ -84,6 +84,8 @@
                 description: formData.get('description'),
                 operationId: formData.get('operationId'),
                 deprecated: formData.get('deprecated') === 'on',
+                // Absent when the whole API is public.
+                ...(document.getElementById('infoForm').elements.public && { public: formData.get('public') === 'on' }),
             },
         });
         done('Endpoint details saved');

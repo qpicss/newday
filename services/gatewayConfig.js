@@ -173,9 +173,11 @@ const buildGatewayConfig = async (gateway) => {
       ...(api.access === 'public' && { access: 'public' }),
       upstreamUrl: isAbsoluteHttpUrl(api.baseUrl) ? api.baseUrl : null,
       connectionId: api.connection ? api.connection.id : null,
-      operations: listOperations(api.spec).map(({ method, path }) => ({
+      operations: listOperations(api.spec).map(({ method, path, public: isPublic }) => ({
         method,
         path,
+        // Only public operations say so, as for APIs.
+        ...(isPublic && api.access !== 'public' && { access: 'public' }),
         ...((portsValidate || usesContract(flow.flow)) && { contract: operationContract(api.spec, path, method) || { parameters: [], body: null } }),
       })),
       flow,

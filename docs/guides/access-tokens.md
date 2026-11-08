@@ -51,7 +51,7 @@ ACCESS_TOKEN=$(curl -s -u "$CLIENT_ID:$CLIENT_SECRET" -d grant_type=client_crede
 curl -H "Authorization: Bearer $ACCESS_TOKEN" https://api.example.com/shop/orders
 ```
 
-An API whose access is **Public** needs no token. The gateway ignores one if you send it.
+An API whose access is **Public**, or an operation marked **No token** on the API's page, needs no token. The gateway ignores one if you send it.
 
 ## What to take into account
 

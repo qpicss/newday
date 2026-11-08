@@ -78,6 +78,7 @@ const validateApis = (apis, connectionIds) => {
     assert(Array.isArray(api.operations), `API "${api.name}" must list its operations`);
     for (const operation of api.operations) {
       assert(isPlainObject(operation) && typeof operation.method === 'string' && typeof operation.path === 'string', `API "${api.name}" has an operation without a method and path`);
+      assert(operation.access === undefined || ACCESS.includes(operation.access), `API "${api.name}": ${operation.method.toUpperCase()} ${operation.path} has an unknown access mode`);
       const { contract } = operation;
       assert(contract === undefined || contract === null || (isPlainObject(contract)
         && (contract.parameters === undefined || Array.isArray(contract.parameters))

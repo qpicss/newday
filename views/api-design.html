@@ -127,6 +127,7 @@
                         <span class="method method-<%= operation.method %>"><%= operation.method %></span>
                         <h2><code><%= operation.path %></code></h2>
                         <% if (operation.deprecated) { %><span class="badge badge-warning">Deprecated</span><% } %>
+                        <% if (api.access === 'public') { %><span class="badge">Public API</span><% } else if (operation.public) { %><span class="badge badge-warning"><%- include('partials/icon.html', { name: 'unlock' }) %>No token</span><% } %>
                     </div>
                     <form id="infoForm" class="card-body form">
                         <div class="field-row">
@@ -144,6 +145,9 @@
                             <textarea class="textarea" id="opDescription" name="description" rows="2" maxlength="5000"><%= operation.description %></textarea>
                         </div>
                         <label class="checkbox-row"><input type="checkbox" name="deprecated" <%= operation.deprecated ? 'checked' : '' %>> Deprecated: clients should stop using it</label>
+                        <% if (api.access !== 'public') { %>
+                            <label class="checkbox-row"><input type="checkbox" name="public" <%= operation.public ? 'checked' : '' %>> No token: the gateway serves this endpoint to anyone, without a token, subscription or rate limit. The rest of the API still needs a token.</label>
+                        <% } %>
                         <div id="info-alert" class="alert alert-danger" role="alert" hidden>
                             <%- include('partials/icon.html', { name: 'alert' }) %><span data-alert-text></span>
                         </div>

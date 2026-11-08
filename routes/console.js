@@ -21,7 +21,7 @@ const {
   Policy,
 } = require('../models');
 const { isMailConfigured } = require('../utils/mailer');
-const { HTTP_METHODS, listOperations } = require('../utils/openapi');
+const { HTTP_METHODS, listOperations, operationTree } = require('../utils/openapi');
 const { serializeApi } = require('../controllers/apiController');
 const {
   RATE_LIMIT_PERIODS,
@@ -251,9 +251,12 @@ router.get('/apis/:id', requireOrgAdmin, async (req, res) => {
   // Editing a shared policy changes the other APIs too, so the page says how many share it.
   const sharedWith = policy ? await Api.count({ where: orgWhere(req, { policyId: policy.id, id: { [Op.ne]: api.id } }) }) : 0;
   const steps = policy ? (policy.flow?.nodes || []).filter((node) => !['input', 'output'].includes(node.type)) : [];
+  const serialized = serializeApi(api, { withOperations: true });
   res.render('api-detail.html', {
     user: req.user,
-    api: serializeApi(api, { withOperations: true }),
+    api: serialized,
+    // The endpoints grouped by path, as a tree.
+    pathTree: operationTree(serialized.operations),
     methods: HTTP_METHODS,
     policies: policies.map((item) => ({ id: item.id, name: item.name })),
     // Only an Invoke step for "the API's backend" without its own URL uses the OpenAPI server URL.

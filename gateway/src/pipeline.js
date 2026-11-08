@@ -221,13 +221,14 @@ const createRequestHandler = ({ handler, getRuntime, settings, rateLimiter, poli
     Object.assign(event, { api: route.api.name, apiId: route.api.id });
     gatewayStep('route', 'Route', `${route.api.name}: ${req.method} ${route.path}`);
 
-    const isPublic = route.api.access === 'public';
+    // The whole API, or only this operation, may be open to anyone.
+    const isPublic = route.api.access === 'public' || route.operation.access === 'public';
     let clientId = null;
     let product = null;
     let application = null;
     if (isPublic) {
       event.access = 'public';
-      gatewayStep('access', 'Access', 'Public API: no token needed');
+      gatewayStep('access', 'Access', route.api.access === 'public' ? 'Public API: no token needed' : `Public operation ${req.method} ${route.path}: no token needed`);
     } else {
       const checked = performance.now();
       try {
