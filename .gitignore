@@ -11,3 +11,10 @@ oldapp/
 *.pfx
 *.p12
 *.key
+# Offline install bundles (deploy/offline/build-bundle.sh)
+dist/
+
+# Private certificate chain (deploy/pki/create-ca.sh) and its key passwords
+mana2-pki/
+mana2-pki-passwords.txt
+*-pki-passwords.txt

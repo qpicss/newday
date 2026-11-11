@@ -1,0 +1,17 @@
+.git
+**/node_modules
+oldapp
+dist
+backups
+test
+deploy
+gateway/test
+gateway/data
+gateway/deploy
+.env
+.env.*
+*.sqlite
+*credentials*.json
+*.key
+*.pfx
+*.p12

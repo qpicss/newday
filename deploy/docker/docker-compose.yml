@@ -1,0 +1,79 @@
+# The console with its MySQL database on one Docker host, as installed by deploy/docker/install.sh
+# (see docs/guides/console-docker.md).
+#
+#   docker compose up -d                          console + MySQL (console on port 3000)
+#   docker compose --profile https up -d          + nginx with your certificate on 443
+#   docker compose --profile gateway up -d        + a gateway node on this host
+#
+# .env (next to this file) holds the MySQL passwords and the image tags; console.env holds the
+# console's settings. MySQL is not published: only the console reaches it.
+name: oauth-console
+
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set in .env}
+      MYSQL_DATABASE: newday
+      MYSQL_USER: newday
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?set in .env}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      # Over TCP: the temporary server MySQL runs while it initializes listens on the socket only.
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 30s
+
+  console:
+    image: oauth-console:${CONSOLE_TAG:-1.0.0}
+    restart: unless-stopped
+    env_file: console.env
+    # These win over console.env: the console always uses the database in this stack.
+    environment:
+      DB_HOST: mysql
+      DB_PORT: "3306"
+      DB_NAME: newday
+      DB_USER: newday
+      DB_PASSWORD: ${MYSQL_PASSWORD:?set in .env}
+      PORT: "3000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports:
+      - "${CONSOLE_HTTP_BIND:-0.0.0.0}:3000:3000"   # 127.0.0.1 when nginx serves HTTPS
+      - "3443:3443"                                 # gateway link (mTLS), for pull-mode gateways
+
+  nginx:
+    image: nginx:1.27-alpine
+    profiles: ["https"]
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./tls:/etc/nginx/tls:ro
+    depends_on: [console]
+
+  gateway:
+    image: oauth-server-gateway:${GATEWAY_TAG:-1.0.0}
+    profiles: ["gateway"]
+    restart: unless-stopped
+    environment:
+      GATEWAY_NODE_NAME: ${GATEWAY_NODE_NAME:-gateway-1}
+    ports:
+      - "9443:9443"   # management (mTLS): the console pushes here
+      - "9445:9445"   # admin UI
+      - "9080:9080"   # health checks and /metrics
+      - "8443:8443"   # connection handler (must match the handler in the console)
+    volumes:
+      - ./gateway-credentials.json:/etc/oauth-gateway/credentials.json:ro
+      - gateway-data:/data
+
+volumes:
+  mysql-data:
+  gateway-data:

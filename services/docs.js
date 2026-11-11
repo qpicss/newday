@@ -59,6 +59,8 @@ const SECTIONS = [
       { slug: 'guides/cloud-deployment', file: 'docs/guides/cloud-deployment.md', title: 'Deploying to the cloud' },
       { slug: 'guides/deploy-aws', file: 'docs/guides/deploy-aws.md', title: 'Deploy on AWS' },
       { slug: 'guides/deploy-azure', file: 'docs/guides/deploy-azure.md', title: 'Deploy on Azure' },
+      { slug: 'guides/offline-install', file: 'docs/guides/offline-install.md', title: 'Installing without internet access' },
+      { slug: 'guides/console-docker', file: 'docs/guides/console-docker.md', title: 'Running the console with Docker' },
       { slug: 'guides/security', file: 'docs/guides/security.md', title: 'Security' },
       { slug: 'gateway', file: 'gateway/README.md', title: 'Gateway reference' },
       { slug: 'guides/development', file: 'docs/guides/development.md', title: 'Development' },

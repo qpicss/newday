@@ -13,6 +13,7 @@ The scripts live in the repository under `deploy/`:
 | `deploy/console/install.sh` | the console VM | installs the console as the `oauth-console` systemd service, with nginx and Let's Encrypt |
 | `deploy/cloud/console-env.sh` | the console VM | writes `/etc/oauth-console/console.env` from SSM or Key Vault |
 | `deploy/cloud/gateway-node.sh` | each gateway VM | starts the gateway container; later `oauth-gateway-node <image>` updates it |
+| `deploy/offline/build-bundle.sh` | your machine | an offline bundle of the console, for a VM without internet access: see [Installing without internet access](offline-install.md) |
 
 The scripts have been checked for syntax only. Run them in a test account or subscription first.
 
@@ -100,7 +101,7 @@ Then create the DNS record: `console.example.com` → that IP.
 
 ### Phase 3: Install the console
 
-On the console VM:
+On the console VM. If it has no internet access, follow [Installing without internet access](offline-install.md) instead.
 
 1. Copy the code (`git archive`) and run `sudo bash deploy/console/install.sh --domain console.example.com --email ops@example.com`. That installs Node.js 20, the service, nginx and a Let's Encrypt certificate.
 2. Run `deploy/cloud/console-env.sh` to write the settings from the secret store.
@@ -209,14 +210,13 @@ Notes:
 A new database has no platform admin. Create one:
 
 1. Open `https://console.example.com/register` and register. You become the admin of a new organization.
-2. Promote the account in the database, from the console VM:
+2. Promote the account, from the console VM:
 
    ```bash
-   sudo apt-get install -y mysql-client
-   source <(sudo grep -E '^DB_(HOST|NAME|USER|PASSWORD)=' /etc/oauth-console/console.env)
-   MYSQL_PWD="$DB_PASSWORD" mysql -h "$DB_HOST" -u "$DB_USER" --ssl-mode=REQUIRED "$DB_NAME" \
-     -e "UPDATE Users SET role='admin' WHERE email='you@example.com';"
+   sudo -u oauth-console bash -c 'set -a; . /etc/oauth-console/console.env; cd /opt/oauth-console/current && node scripts/platform-admin.js you@example.com'
    ```
+
+   It uses the console's own database settings, so no MySQL client is needed. A console installed from the [offline bundle](offline-install.md) has the shorter `sudo oauth-console-admin you@example.com`.
 
 3. Sign out and in again. **Admin** appears in the menu. From then on, promote others in the console ([Guide for site admins](../users/site-admins.md)).
 
