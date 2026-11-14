@@ -82,8 +82,9 @@ gateway_containers() {
 
 [[ -n "$IMAGE_ARG" && -z "$MODE" ]] && MODE=docker
 if [[ -z "$MODE" ]]; then
-  if service_installed; then MODE=service
-  elif command -v docker >/dev/null 2>&1 && [[ -n "$(gateway_containers)" ]]; then MODE=docker
+  # A gateway container wins over a service installed later next to it.
+  if command -v docker >/dev/null 2>&1 && [[ -n "$(gateway_containers)" ]]; then MODE=docker
+  elif service_installed; then MODE=service
   else fail "No gateway found: neither the oauth-gateway service nor a gateway container. Install one with deploy/install.sh or the docker run command from the console."
   fi
 fi
@@ -120,7 +121,7 @@ update_service() {
   health_port="${health_port:-9080}"
 
   # install.sh installs a new release, switches "current" and restarts a running service.
-  bash "${SOURCE_DIR}/deploy/install.sh" >/dev/null
+  bash "${SOURCE_DIR}/deploy/install.sh" --service >/dev/null
   systemctl daemon-reload
   systemctl is-active --quiet oauth-gateway || systemctl restart oauth-gateway
 
@@ -269,6 +270,12 @@ update_docker() {
   command -v docker >/dev/null 2>&1 || fail "Docker isn't installed here."
   if [[ ${#CONTAINERS[@]} -eq 0 ]]; then mapfile -t CONTAINERS < <(gateway_containers); fi
   [[ ${#CONTAINERS[@]} -gt 0 ]] || fail "No gateway container found. Name it: --docker <name>."
+
+  # A systemd gateway on this host would hold the same ports: switch it off.
+  if service_installed && command -v systemctl >/dev/null 2>&1; then
+    info "Switching off the oauth-gateway service (the container serves this node)"
+    systemctl disable --now oauth-gateway >/dev/null 2>&1 || true
+  fi
 
   # Each container's image tag (or --image) and the image it runs now, before anything changes.
   declare -A image_of old_id_of

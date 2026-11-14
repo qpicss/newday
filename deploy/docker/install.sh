@@ -6,7 +6,7 @@
 #
 #   sudo bash install.sh                                                   # console on port 3000
 #   sudo bash install.sh --domain console.example.com --cert console.crt --key console.key
-#   sudo PFX_PASSWORD=... bash install.sh --domain console.mana2.ro --pfx mana2.ro.pfx
+#   sudo PFX_PASSWORD=... bash install.sh --domain mgmt01.mana2.ro --pfx mana2.ro.pfx
 #
 # Options:
 #   --domain NAME --cert FILE --key FILE   HTTPS on 443 through an nginx container with your certificate

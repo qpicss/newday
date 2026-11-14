@@ -114,8 +114,10 @@ Pack the certificate with the console, then install with it:
 ```bash
 PFX=mana2-pki/mana2.ro.pfx bash deploy/docker/pack.sh
 # on the server
-sudo bash install.sh --domain console.mana2.ro          # asks for the PFX password
+sudo bash install.sh --domain mgmt01.mana2.ro          # asks for the PFX password
 ```
+
+The wildcard `*.mana2.ro` covers the console (`mgmt01.mana2.ro`) and the gateway's public name (`console.mana2.ro`) alike. It covers one level only: `a.b.mana2.ro` needs a certificate of its own.
 
 Browsers and API clients trust the certificate only once they trust the root CA. Install `root-ca.crt` on their machines (on Windows: the *Trusted Root Certification Authorities* store; on Ubuntu: copy it to `/usr/local/share/ca-certificates/mana2-root-ca.crt` and run `update-ca-certificates`). For curl: `--cacert root-ca.crt`.
 

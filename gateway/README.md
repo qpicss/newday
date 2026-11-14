@@ -113,6 +113,7 @@ journalctl -u oauth-gateway -f
 - The script installs Node.js 20 if needed, creates the `oauth-gateway` system user and installs a versioned release under `/opt/oauth-gateway/releases`, with `/opt/oauth-gateway/current` pointing to it.
 - It also installs the hardened systemd unit `deploy/oauth-gateway.service`, which may bind ports below 1024.
 - Re-run the script to upgrade, or use `update.sh` (below). To roll back, point `current` at the previous release and restart.
+- On a server where the gateway already runs in Docker, `install.sh` updates that container instead (it runs `update.sh --docker`). So there too, copying the new folder and running `install.sh` is enough. `install.sh --service` installs the service anyway.
 
 ### Update a running gateway
 
@@ -122,7 +123,8 @@ Copy the new `gateway/` folder to the server (or `git pull` the repository), the
 sudo bash gateway/deploy/update.sh          # add --git to git pull the repository first
 ```
 
-- It finds the gateway itself: the `oauth-gateway` service, or every gateway container, whatever its image is called. `--service` or `--docker <name>...` picks one.
+- It finds the gateway itself: every gateway container, whatever its image is called, or else the `oauth-gateway` service. `--service` or `--docker <name>...` picks one.
+- Docker: an `oauth-gateway` service installed on the same server would hold the same ports, so it is stopped and disabled.
 - Service: it installs a new release with `install.sh`, restarts the service and waits for `/healthz`.
 - Docker: it builds the new image first, under the tag the container runs (or `--image <tag>`), while the old container still serves. Then, one container at a time, it stops the container, starts a new one on the new image with the same ports, settings and volumes, and removes the old container once the new one is healthy. Containers of a Docker Compose project are recreated by `docker compose`, so they stay in their project. The old image is removed once no container runs it.
 - A node that isn't healthy within 60 seconds (`--wait`) goes back to the previous release or image by itself.

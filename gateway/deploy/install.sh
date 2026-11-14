@@ -20,6 +20,15 @@ if [[ $EUID -ne 0 ]]; then
   exit 1
 fi
 
+# A gateway already runs here in Docker: update that container to this code instead of installing
+# the service next to it (both would want the same ports). --service installs the service anyway.
+if [[ "${1:-}" != --service ]] && command -v docker >/dev/null 2>&1 \
+  && docker ps -a --format '{{.Image}}' 2>/dev/null | grep -qE 'oauth-(server-)?gateway'; then
+  echo "==> A gateway container runs here: updating it (deploy/update.sh --docker)"
+  sed -i 's/\r$//' "${SOURCE_DIR}/deploy/update.sh"
+  exec bash "${SOURCE_DIR}/deploy/update.sh" --docker
+fi
+
 node_major() {
   node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0
 }

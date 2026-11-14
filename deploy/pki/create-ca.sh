@@ -116,7 +116,7 @@ ${DOMAIN} server key           ${DOMAIN}.key         ${SERVER_PASS}
 ${DOMAIN} PFX                  ${DOMAIN}.pfx         ${PFX_PASS}
 
 Install the console with the PFX:
-  sudo PFX_PASSWORD='${PFX_PASS}' bash install.sh --domain console.${DOMAIN} --pfx ${DOMAIN}.pfx
+  sudo PFX_PASSWORD='${PFX_PASS}' bash install.sh --domain mgmt01.${DOMAIN} --pfx ${DOMAIN}.pfx
 Clients must trust ${NAME} Root CA (root-ca.crt) to accept the certificate.
 EOF
 
