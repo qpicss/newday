@@ -21,6 +21,7 @@ const MAX_LOGGED_STEPS = 50;
 const MAX_STEP_LOGS = 20;
 const MAX_LOG_LENGTH = 500;
 const MAX_STEP_PROBLEMS = 10;
+const MAX_STEP_DETAILS = 20;
 
 // The steps of a request, for the request log: the gateway's own (receive, route, access, rate limit,
 // respond, without a `flow`) around the steps the flows ran, with what each decided and how long it took.
@@ -35,6 +36,7 @@ const flowLog = (trace) => (trace.length > MAX_LOGGED_STEPS ? [...trace.slice(0,
   ...(step.branch && { branch: step.branch }),
   ...(step.durationMs !== undefined && { durationMs: step.durationMs }),
   ...(step.error && { error: step.error }),
+  ...(step.details?.length && { details: step.details.slice(0, MAX_STEP_DETAILS).map((line) => String(line).slice(0, MAX_LOG_LENGTH)) }),
   ...(step.logs?.length && {
     logs: step.logs.slice(0, MAX_STEP_LOGS).map(([level, message]) => ({ level, message: String(message).slice(0, MAX_LOG_LENGTH) })),
   }),
@@ -47,29 +49,59 @@ const flowLog = (trace) => (trace.length > MAX_LOGGED_STEPS ? [...trace.slice(0,
   }),
 }));
 
+// An error that also says, for the request log only, why the gateway answered as it did.
+const explained = (error, reason, details = []) => Object.assign(error, { reason, details: [reason, ...details] });
+
+// What the Authorization header holds, without its value.
+const authorizationKind = (header) => {
+  if (!header) return 'none';
+  const scheme = header.trim().split(/\s+/)[0];
+  return /^bearer$/i.test(scheme) ? 'Bearer token' : `${scheme.slice(0, 32)} (not accepted: the gateway takes Bearer tokens)`;
+};
+
+// Why a token failed verification, in words; the token itself is never logged.
+const tokenProblem = (error) => {
+  if (error.name === 'TokenExpiredError') return `The token expired at ${error.expiredAt.toISOString()}`;
+  if (error.name === 'NotBeforeError') return `The token is not valid before ${error.date.toISOString()}`;
+  if (/audience invalid/.test(error.message)) return `The token's audience (aud) is not ${error.message.split('expected: ')[1] || 'this gateway'}`;
+  if (/issuer invalid/.test(error.message)) return `The token's issuer (iss) is not ${error.message.split('expected: ')[1] || 'this console'}`;
+  if (/signature/.test(error.message)) return 'The token signature does not match the token key it names';
+  if (/algorithm/.test(error.message)) return 'The token is not signed with RS256';
+  return `The token could not be verified: ${error.message}`;
+};
+
 const authenticate = (req, runtime) => {
   const header = req.headers.authorization || '';
   const match = header.match(/^Bearer\s+(.+)$/i);
   if (!match) {
-    throw new HttpError(401, 'invalid_request', 'Send an access token: Authorization: Bearer <token>', {
+    throw explained(new HttpError(401, 'invalid_request', 'Send an access token: Authorization: Bearer <token>', {
       'www-authenticate': 'Bearer realm="gateway"',
-    });
+    }), header ? `The Authorization header is ${authorizationKind(header)}` : 'The request has no Authorization header', [
+      'Get a token from POST /oauth/token (client credentials) and send it as Authorization: Bearer <token>',
+    ]);
   }
 
+  const invalid = (reason) => explained(new HttpError(401, 'invalid_token', 'The access token is invalid or expired', {
+    'www-authenticate': 'Bearer realm="gateway", error="invalid_token"',
+  }), reason);
+  const decoded = jwt.decode(match[1], { complete: true });
+  if (!decoded) throw invalid('The Bearer token is not a JWT');
+  const kid = String(decoded.header.kid ?? '').slice(0, 64);
+  const key = runtime.tokenKeys.get(decoded.header.kid);
+  if (!key) {
+    throw invalid(kid
+      ? `The token's key ID "${kid}" is not one of this gateway's token keys (${[...runtime.tokenKeys.keys()].join(', ') || 'none'}): it was issued by another console, or this node's configuration is older than the key`
+      : 'The token has no key ID (kid)');
+  }
   let payload;
   try {
-    const decoded = jwt.decode(match[1], { complete: true });
-    const key = decoded && runtime.tokenKeys.get(decoded.header.kid);
-    if (!key) throw new Error('unknown key');
     payload = jwt.verify(match[1], key, {
       algorithms: ['RS256'],
       audience: runtime.audience,
       issuer: runtime.issuer,
     });
-  } catch {
-    throw new HttpError(401, 'invalid_token', 'The access token is invalid or expired', {
-      'www-authenticate': 'Bearer realm="gateway", error="invalid_token"',
-    });
+  } catch (error) {
+    throw invalid(tokenProblem(error));
   }
   return payload.sub;
 };
@@ -79,7 +111,14 @@ const findProduct = (runtime, apiId, clientId) => {
   const product = subscription && (runtime.productsByApi.get(apiId) || [])
     .find((candidate) => subscription.productIds.has(candidate.id));
   if (!product) {
-    throw new HttpError(403, 'forbidden', 'Your application has no approved access to an API product that includes this API');
+    const offered = (runtime.productsByApi.get(apiId) || []).map((candidate) => candidate.name);
+    throw explained(new HttpError(403, 'forbidden', 'Your application has no approved access to an API product that includes this API'),
+      subscription
+        ? `Application ${subscription.application || clientId} is approved for other products, none of which includes this API`
+        : `Client ${clientId} has no approved subscription on this gateway`,
+      [offered.length
+        ? `Products with this API: ${offered.join(', ')}. Subscribe the application to one and have an organization admin approve it`
+        : 'No published product on this gateway includes this API: add it to a product and publish it']);
   }
   return { product, application: subscription.application };
 };
@@ -176,9 +215,18 @@ const createRequestHandler = ({ handler, getRuntime, settings, rateLimiter, poli
   const since = (start) => Math.round((performance.now() - start) * 10) / 10;
   // A step the gateway itself takes; `stop` marks the one that ended the request early.
   const gatewayStep = (type, name, outcome, extra = {}) => trace?.push({ type, name, outcome, ...extra });
-  gatewayStep('receive', 'Receive', `${req.method} ${url.pathname} on ${handler.name} (port ${handler.port}) from ${req.socket.remoteAddress}`);
+  // What arrived, by name and kind only: header values and the body stay out of the log.
+  gatewayStep('receive', 'Receive', `${req.method} ${url.pathname} on ${handler.name} (port ${handler.port}) from ${req.socket.remoteAddress}`, {
+    details: [
+      `Host: ${String(req.headers.host || 'none').slice(0, 255)}`,
+      `Authorization: ${authorizationKind(req.headers.authorization)}`,
+      ...(req.headers['x-forwarded-for'] ? [`Forwarded for: ${String(req.headers['x-forwarded-for']).slice(0, 255)}`] : []),
+      ...(url.search ? [`Query parameters: ${[...new Set(url.searchParams.keys())].join(', ')}`] : []),
+      ...(event.bytesIn ? [`Body: ${event.bytesIn} bytes (${String(req.headers['content-type'] || 'no content type').slice(0, 100)})`] : []),
+    ],
+  });
 
-  const finish = (status, extra = {}, message = null) => {
+  const finish = (status, extra = {}, message = null, details = []) => {
     Object.assign(event, extra, { status, durationMs: since(started) });
     if (policyMs) event.policyMs = Math.round(policyMs * 10) / 10;
     if (trace) {
@@ -188,7 +236,7 @@ const createRequestHandler = ({ handler, getRuntime, settings, rateLimiter, poli
       else if (message) outcome = `${message} (${status})`;
       else if (extra.reply) outcome = `Answered ${status}, replied by "${extra.reply}"`;
       else if (extra.echoed) outcome = `Answered ${status} with the request it received`;
-      gatewayStep('respond', 'Respond', outcome, { durationMs: event.durationMs, ...(status >= 400 && { stop: true }) });
+      gatewayStep('respond', 'Respond', outcome, { durationMs: event.durationMs, ...(status >= 400 && { stop: true }), ...(details.length && { details }) });
       event.flow = flowLog(trace);
     }
     observability.record(event);
@@ -211,7 +259,10 @@ const createRequestHandler = ({ handler, getRuntime, settings, rateLimiter, poli
 
     const route = matchRoute(runtime.routes, req.method, url.pathname);
     if (route.status === 404) {
-      gatewayStep('route', 'Route', `No API operation matches ${url.pathname}`, { stop: true });
+      gatewayStep('route', 'Route', `No API operation matches ${url.pathname}`, {
+        stop: true,
+        details: ['No API deployed to this gateway has an operation for this path: check the API is in a published product on this gateway, and its base path'],
+      });
       throw new HttpError(404, 'not_found', 'No API operation matches this path');
     }
     if (route.status === 405) {
@@ -219,10 +270,16 @@ const createRequestHandler = ({ handler, getRuntime, settings, rateLimiter, poli
       throw new HttpError(405, 'method_not_allowed', `Use ${route.allow.join(', ')} for this path`, { allow: route.allow.join(', ') });
     }
     Object.assign(event, { api: route.api.name, apiId: route.api.id });
-    gatewayStep('route', 'Route', `${route.api.name}: ${req.method} ${route.path}`);
-
     // The whole API, or only this operation, may be open to anyone.
     const isPublic = route.api.access === 'public' || route.operation.access === 'public';
+    const accessRule = `API access: ${route.api.access || 'subscription'}; operation access: ${route.operation.access || 'as the API'}`;
+    gatewayStep('route', 'Route', `${route.api.name}: ${req.method} ${route.path}`, {
+      details: [
+        `API base path: ${route.api.basePath || '/'}`,
+        ...(route.params && Object.keys(route.params).length ? [`Path parameters: ${Object.keys(route.params).join(', ')}`] : []),
+        `${accessRule} (${isPublic ? 'no token needed' : 'token and approved subscription needed'})`,
+      ],
+    });
     let clientId = null;
     let product = null;
     let application = null;
@@ -237,7 +294,14 @@ const createRequestHandler = ({ handler, getRuntime, settings, rateLimiter, poli
         ({ product, application } = findProduct(runtime, route.api.id, clientId));
       } catch (error) {
         observability.metrics.authFailures.inc({ reason: error.code });
-        gatewayStep('access', 'Access', error instanceof HttpError ? `Refused: ${error.message}` : 'Refused', { durationMs: since(checked), stop: true });
+        gatewayStep('access', 'Access', error instanceof HttpError ? `Refused: ${error.message}` : 'Refused', {
+          durationMs: since(checked),
+          stop: true,
+          details: [
+            ...(error.details || []),
+            ...(error.code === 'invalid_request' ? [`${req.method} ${route.path} of ${route.api.name} needs a token (${accessRule}). To serve it without one, make the operation or the API public in the console and deploy`] : []),
+          ],
+        });
         throw error;
       }
       Object.assign(event, { productId: product.id, product: product.name, application });
@@ -377,19 +441,23 @@ const createRequestHandler = ({ handler, getRuntime, settings, rateLimiter, poli
   } catch (error) {
     if (error instanceof HttpError) {
       sendJson(res, error.status, { error: error.code, message: error.message, requestId }, { ...responseHeaders, ...error.headers });
-      finish(error.status, { error: error.code }, error.message);
+      finish(error.status, { error: error.code, ...(error.reason && { reason: error.reason }) }, error.message, error.details || []);
       return;
     }
     if (error instanceof PolicyError) {
       logger.error('policy failed', { requestId, traceId: span.traceId, policy: error.policyName, error: error.message });
       for (const [, message] of error.logs) logger.info('policy log', { requestId, message });
       sendJson(res, 500, { error: 'policy_error', message: 'The gateway policy for this API failed', requestId }, responseHeaders);
-      finish(500, { error: 'policy_error' });
+      finish(500, { error: 'policy_error', reason: `${error.policyName}: ${error.message}` }, null, [
+        `Policy step: ${error.policyName}`,
+        `Exception: ${error.message}`,
+        ...error.logs.slice(0, MAX_STEP_LOGS).map(([level, message]) => `[${level}] ${message}`),
+      ]);
       return;
     }
     logger.error('request failed', { requestId, error: error.message });
     sendJson(res, 500, { error: 'internal_error', message: 'The gateway could not process this request', requestId }, responseHeaders);
-    finish(500, { error: 'internal_error' });
+    finish(500, { error: 'internal_error', reason: error.message }, null, [`Exception: ${error.name}: ${error.message}`, ...(error.code ? [`Code: ${error.code}`] : [])]);
   }
 };
 

@@ -231,6 +231,24 @@ describe('checking steps', () => {
     assert.doesNotMatch(JSON.stringify(lost), /abc/);
   });
 
+  it('says in the log why a request was refused, without the token', async () => {
+    assert.equal((await call('/orders', { headers: { authorization: '' } })).status, 401);
+    const [missing] = (await manage('GET', '/v1/requests?limit=1')).body.entries;
+    assert.equal(missing.reason, 'The request has no Authorization header');
+    const byType = (entry, type) => entry.flow.find((step) => step.type === type);
+    assert.ok(byType(missing, 'receive').details.includes('Authorization: none'));
+    assert.match(byType(missing, 'route').details.at(-1), /API access: subscription; operation access: as the API \(token and approved subscription needed\)/);
+    assert.match(byType(missing, 'access').details.at(-1), /make the operation or the API public/);
+    assert.equal(byType(missing, 'respond').details[0], 'The request has no Authorization header');
+
+    const [, payload, signature] = tokenFor(pki).split('.');
+    const forged = `${Buffer.from(JSON.stringify({ alg: 'RS256', kid: 'old-key' })).toString('base64url')}.${payload}.${signature}`;
+    assert.equal((await call('/orders', { headers: { authorization: `Bearer ${forged}` } })).status, 401);
+    const [unknown] = (await manage('GET', '/v1/requests?limit=1')).body.entries;
+    assert.match(unknown.reason, /^The token's key ID "old-key" is not one of this gateway's token keys/);
+    assert.doesNotMatch(JSON.stringify(unknown), new RegExp(signature));
+  });
+
   it('refuses addresses on the deny list or missing from the allow list', async () => {
     assert.equal((await push([security({ ipDeny: ['127.0.0.0/8'] }), invokeStep()], 'c7')).status, 200);
     const denied = await call('/orders');

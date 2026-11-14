@@ -286,7 +286,7 @@
                 items.push(h('li', { class: 'flow-log-flow', text: name }));
             }
             const kind = STEP_TYPES[step.type] || step.type;
-            const lines = [...(step.problems || []), ...(step.logs || []).map((line) => `[${line.level}] ${line.message}`)];
+            const lines = [...(step.details || []), ...(step.problems || []), ...(step.logs || []).map((line) => `[${line.level}] ${line.message}`)];
             items.push(h('li', { class: `log-step${step.error ? ' is-failed' : step.stop ? ' is-stopped' : ''}` }, [
                 stepIcon(step.type),
                 h('div', { class: 'log-step-body' }, [

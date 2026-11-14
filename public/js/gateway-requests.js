@@ -115,6 +115,7 @@ function flowLog(steps) {
             ...(step.durationMs !== undefined ? [element('span', { className: 'test-step-time', text: `${step.durationMs} ms` })] : []),
         ]);
         const lines = [
+            ...(step.details || []),
             ...(step.problems || []),
             ...(step.logs || []).map((line) => `[${line.level}] ${line.message}`),
         ];
